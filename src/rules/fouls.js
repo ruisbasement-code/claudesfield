@@ -44,9 +44,13 @@ export function judgeTackle(match, ev) {
   const slide = kind === 'slide';
 
   // Probability the referee calls it.
+  // A clean challenge that wins the ball first from the front or side is never
+  // a foul, even if the player goes down afterwards. Only late (missed the
+  // ball), from-behind or very heavy challenges get called.
+  if (ballFirst && !fromBehind && severity < 0.85) return null;
   let pFoul;
-  if (ballFirst) pFoul = (slide ? 0.08 : 0.03) + (fromBehind ? 0.18 : 0) + Math.max(0, severity - 0.75) * 0.9;
-  else pFoul = 0.62 + severity * 0.3 + (fromBehind ? 0.15 : 0) + (slide ? 0.08 : 0);
+  if (ballFirst) pFoul = 0.2 + Math.max(0, severity - 0.6) * 0.8;
+  else pFoul = 0.18 + severity * 0.3 + (fromBehind ? 0.25 : 0);
   pFoul = clamp(pFoul * strict, 0, 0.98);
   if (Math.random() > pFoul) return null;
 
