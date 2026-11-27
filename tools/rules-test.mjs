@@ -95,7 +95,7 @@ const check = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); 
   victim.pos.set(30, 0, 5); tackler.pos.set(29.5, 0, 5.5); m.ball.pos.set(30.3, 0.11, 5); m.ball.owner = victim;
   let got = null;
   for (let i = 0; i < 40 && !got; i++) {
-    m.events.emit('tackle', { tackler, victim, kind: 'slide', ballFirst: false, contact: true, fromBehind: true, severity: 0.7, pos: victim.pos.clone() });
+    m.events.emit('tackle', { tackler, victim, kind: 'slide', ballFirst: false, contact: true, fromBehind: true, severity: 0.95, pos: victim.pos.clone() });
     if (r.mode !== 'play') got = true;
   }
   check(got, 'reckless slide from behind is a foul');

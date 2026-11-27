@@ -65,7 +65,9 @@ export class Officials {
 
     // --- referee: diagonal system, 12-20 m from play, never on top of the ball
     let target;
-    if (this.refTarget) target = this.refTarget;
+    const so = m.shootout?.active;
+    if (so) target = new Vector3(PITCH.halfL - 15, 0, -11); // edge of the box, watching the kick
+    else if (this.refTarget) target = this.refTarget;
     else {
       const bx = ball.x, bz = ball.z;
       target = new Vector3(
@@ -78,7 +80,7 @@ export class Officials {
     target.z = clamp(target.z, -PITCH.halfW + 2, PITCH.halfW - 2);
     // keep out of the ball's way
     const dbx = r.pos.x - ball.x, dbz = r.pos.z - ball.z, db = Math.hypot(dbx, dbz);
-    if (db < 6 && !this.refTarget) { target.x += (dbx / (db || 1)) * 6; target.z += (dbz / (db || 1)) * 6; }
+    if (db < 6 && !this.refTarget && !so) { target.x += (dbx / (db || 1)) * 6; target.z += (dbz / (db || 1)) * 6; }
     const moving = r.state === 'run' || r.state === 'point';
     steer(r, target, moving ? REF_SPEED : 0.5, REF_ACCEL, dt);
     r.facing = Math.atan2(ball.z - r.pos.z, ball.x - r.pos.x);
@@ -90,7 +92,12 @@ export class Officials {
       let x = attacking ? offsideLines?.[attacking.index] ?? 0 : 0;
       x = a.half > 0 ? Math.max(x, ball.x) : Math.min(x, ball.x);
       x = a.half > 0 ? clamp(x, 0, PITCH.halfL) : clamp(x, -PITCH.halfL, 0);
-      const tgt = new Vector3(x, 0, a.pos.z);
+      let tgt = new Vector3(x, 0, a.pos.z);
+      if (so) {
+        // shootout: one assistant on the goal line as goal judge, the other in the centre circle
+        if (a.half > 0) { tgt = new Vector3(PITCH.halfL, 0, -PITCH.sixHalfW); steer(a, tgt, AR_SPEED, AR_ACCEL, dt); a.facing = Math.PI / 2; continue; }
+        tgt = new Vector3(-2, 0, -12); steer(a, tgt, AR_SPEED, AR_ACCEL, dt); a.facing = 0; continue;
+      }
       steer(a, tgt, a.flag === 'down' ? AR_SPEED : 0.4, AR_ACCEL, dt);
       a.pos.z = a.half > 0 ? -(PITCH.halfW + 1.2) : PITCH.halfW + 1.2;
       a.facing = a.half > 0 ? Math.PI / 2 : -Math.PI / 2; // facing the pitch
