@@ -255,7 +255,7 @@ export function createHUD(ui) {
 
     // clock
     const secs = state.clockSeconds ?? match?.clock?.seconds ?? 0;
-    const ph = state.phase ?? match?.phase;
+    const ph = match?.shootout?.active || match?.shootout?.done ? 'shootout' : state.phase ?? match?.phase;
     clock.textContent = ph === 'halftime' ? (match?.clock?.half >= 2 ? 'FT' : 'HT') : ph === 'fulltime' ? 'FT' : ph === 'shootout' ? 'PENS' : fmtClock(secs);
     clock.hidden = !S.hud.clock;
     const addMin = state.addedTime ?? match?.clock?.addedTime ?? 0;

@@ -56,8 +56,8 @@ export function crestSVG(team, { size } = {}) {
   else if (motif === 1) pattern = `<rect x="0" y="0" width="100" height="112" fill="${primary}"/><path d="M0 0 L100 0 L100 34 L0 64 Z" fill="${secondary}"/>`;
   else if (motif === 2) pattern = `<rect x="0" y="0" width="50" height="112" fill="${primary}"/><rect x="50" y="0" width="50" height="112" fill="${secondary}"/>`;
   else pattern = `<rect x="0" y="0" width="100" height="112" fill="${primary}"/>` + [0, 1, 2, 3].map((i) => `<rect x="${8 + i * 24}" y="0" width="10" height="112" fill="${secondary}" opacity=".9"/>`).join('');
-  const textInk = motif === 2 || motif === 3 ? '#ffffff' : ink;
-  const plate = motif === 2 || motif === 3 ? `<rect x="14" y="44" width="72" height="28" fill="#0b0b0b" opacity=".82"/>` : '';
+  const textInk = '#ffffff';
+  const plate = `<rect x="14" y="44" width="72" height="28" fill="#0b0b0b" opacity=".82"/>`;
   const sz = size ? `width="${size}" height="${size * 1.12}"` : '';
   return `<svg class="cf-crest" viewBox="0 0 100 112" ${sz} aria-hidden="true">
     <defs><clipPath id="${uid}">${outline}</clipPath></defs>

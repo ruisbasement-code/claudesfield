@@ -1,6 +1,10 @@
 import { h, selectRow } from '../dom.js';
 import { sfx } from '../sound.js';
 import { scorelineEl, scorersEl, statsEl } from './common.js';
+import { getSettings } from '../settings.js';
+import { keyLabel, buttonLabel, padStyle } from '../labels.js';
+
+const QUICK = [['pass', 'Pass'], ['through', 'Through'], ['lob', 'Lob / Cross'], ['shoot', 'Shoot'], ['chip', 'Chip mod'], ['finesse', 'Finesse mod'], ['sprint', 'Sprint'], ['tackle', 'Tackle'], ['slide', 'Slide'], ['switch', 'Switch'], ['mentality', 'Mentality']];
 
 export function pauseScreen(ui) {
   const side = h('div.cf-pause-side');
@@ -24,11 +28,23 @@ export function pauseScreen(ui) {
     get: () => ui.mentality, set: (v) => ui.setMentality(v, false), wrap: false,
   });
   tactics.style.marginTop = '28px';
+  const quick = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', columnGap: '20px', marginTop: '22px', fontSize: '13px', color: 'var(--ink-2)' } });
+  function renderQuick() {
+    const pad = ui.nav.inputMode === 'gamepad';
+    const c = getSettings().controls;
+    const style = padStyle(ui.nav.pad?.id);
+    quick.innerHTML = '';
+    for (const [id, label] of QUICK) {
+      const v = pad ? buttonLabel(c.gamepad[id], style) : keyLabel((c.keyboard[id] || [])[0]);
+      quick.append(h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--line)' } },
+        h('span', {}, label), h('span.cf-glyph', {}, v)));
+    }
+  }
   tactics.style.gridTemplateColumns = '1fr 220px';
   const el = h('section.cf-screen', {},
     h('div.cf-scrim'),
     h('div.cf-pause-inner', {},
-      h('div', {}, minute, h('h1.cf-h1', { style: { marginTop: '12px' } }, 'Paused'), menu, tactics),
+      h('div', {}, minute, h('h1.cf-h1', { style: { marginTop: '12px' } }, 'Paused'), menu, tactics, quick),
       side),
     ui.hints([{ key: 'confirm', label: 'Select' }, { key: 'back', label: 'Resume' }]));
   el.style.zIndex = 5;
@@ -60,6 +76,7 @@ export function pauseScreen(ui) {
       renderSide();
       tactics.hidden = !ui.humanTeamAI();
       tactics.render();
+      renderQuick();
       ui.nav.set({ el, initial: '[data-id="resume"]', wrap: true, onBack: () => ui.resume(), onStart: () => ui.resume() });
     },
   };

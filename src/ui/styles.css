@@ -192,7 +192,7 @@
 
 /* ---------------------------------------------------------------- match setup */
 .cf-setup-body { flex: 1; display: grid; grid-template-columns: 1fr 220px 1fr; gap: 0; padding: 28px 56px 0; min-height: 0; }
-.cf-teamcard { display: flex; flex-direction: column; gap: 16px; padding: 20px 28px; background: var(--panel-2); border: 1px solid var(--line); position: relative; overflow: hidden; }
+.cf-teamcard { display: flex; flex-direction: column; gap: 16px; padding: 20px 28px; background: var(--panel-2); border: 1px solid var(--line); position: relative; overflow: hidden auto; scrollbar-width: none; }
 .cf-teamcard::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--team, var(--ink)); }
 .cf-teamcard .cf-side { display: flex; justify-content: space-between; align-items: center; }
 .cf-teampick { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 8px; padding: 10px 0; transition: background-color .1s; }
@@ -438,6 +438,19 @@
 }
 @media (max-height: 820px) {
   .cf-keyplayers { display: none; }
+  .cf-setup-body { padding-top: 16px; }
+  .cf-teamcard { gap: 10px; padding: 14px 22px; }
+  .cf-teampick { padding: 4px 0; }
+  .cf-teampick .cf-crest { width: 56px; height: 64px; }
+  .cf-teamname { font-size: 28px; }
+  .cf-rating b { font-size: 24px; }
+  .cf-rating { padding-top: 5px; }
+  .cf-kit { padding: 6px 10px 6px; }
+  .cf-kit svg { width: 36px; height: 36px; }
+  .cf-kitrow .cf-overline { margin-bottom: 6px !important; }
+  .cf-setup-options { padding-top: 10px; }
+  .cf-row { min-height: 44px; }
+  .cf-setup-actions { padding-top: 12px; padding-bottom: 12px; }
   .cf-topbar { padding-top: 22px; }
   .cf-topbar .cf-h1 { font-size: 40px; }
 }
