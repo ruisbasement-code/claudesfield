@@ -290,7 +290,7 @@ export class HumanController {
     const lk = ball.lastKick;
     if (!ball.owner && lk && lk.player?.team === this.team && lk.target && lk.receiver && ball.lastTouch === lk.player
       && ['pass', 'through', 'lob', 'cross', 'gkThrow'].includes(lk.type) && m.time - lk.time < 3) {
-      return { from: ball.pos, target: lk.homing ? lk.receiver.pos : lk.target, receiver: lk.receiver, kind: lk.type, power: 1, live: true };
+      return { from: ball.pos, target: lk.target, receiver: lk.receiver, kind: lk.type, power: 1, live: true };
     }
     return null;
   }
@@ -307,13 +307,22 @@ export class HumanController {
       const same = held && (mv.x * held.x + mv.z * held.z) / (mv.mag * (Math.hypot(held.x, held.z) || 1)) > 0.75;
       if (!same) { this.lastPassDir = null; return; } // the player has taken over
     }
-    if (lk.homing) {
-      // a magnet pass is coming to his feet: settle, take a step towards it and open up to it
+    if (lk.toFeet) {
+      // a pass is coming to his feet: settle onto the ball's line, take a step towards it and open up to it
       const bx = ball.pos.x - p.pos.x, bz = ball.pos.z - p.pos.z;
       const bd = Math.hypot(bx, bz) || 1;
-      const k = bd > 3 ? 0.35 : 0;
-      it.move.x = (bx / bd) * k; it.move.z = (bz / bd) * k;
-      it.sprint = false;
+      const vs = Math.hypot(ball.vel.x, ball.vel.z);
+      let tx = 0, tz = 0;
+      if (vs > 0.5) {
+        const ux = ball.vel.x / vs, uz = ball.vel.z / vs;
+        const along = Math.max(0, -(bx * ux + bz * uz)); // how far down the line the ball still has to come
+        tx = ball.pos.x + ux * along - p.pos.x; tz = ball.pos.z + uz * along - p.pos.z;
+      }
+      const td = Math.hypot(tx, tz);
+      if (td > 0.3) { const k = Math.min(1, td / 1.5); it.move.x = (tx / td) * k; it.move.z = (tz / td) * k; }
+      else if (bd > 3) { it.move.x = (bx / bd) * 0.35; it.move.z = (bz / bd) * 0.35; }
+      else { it.move.x = 0; it.move.z = 0; }
+      it.sprint = td > 3;
       it.face = Math.atan2(bz, bx);
       return;
     }
