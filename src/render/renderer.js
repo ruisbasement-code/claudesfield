@@ -268,6 +268,7 @@ export class Renderer {
       return;
     }
     this.ballMesh.visible = this.ballShadow.visible = true;
+    PlayerModel.lookTarget = match.ball.pos; // players' heads follow the ball
     const replay = match.replay?.active ? match.replay : null;
     let ballPos;
     if (replay) {
@@ -294,7 +295,7 @@ export class Renderer {
         s._lastState = s.state;
         s.sentOff = pa.sentOff;
         s.kickAnim = 0;
-        this.playerModels[k].update(dt, s);
+        this.playerModels[k].update(dt * (replay.speed ?? 0.6), s); // slow-motion strides
       });
       rig.override = 'replay';
     } else {
@@ -365,7 +366,7 @@ export class Renderer {
         }
         if (m.flag) {
           const up = o.flag && o.flag !== 'down';
-          m.arms[1].sh.rotation.x = up ? 2.9 : 0.1;
+          m.arms[1].sh.rotation.x = up ? 2.9 : -0.12; // negative = arm hangs clear of the body
           m.flag.material.color.set(o.flag === 'offside' ? 0xff4136 : 0xffd400);
         }
       });
