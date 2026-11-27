@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import { BALL, GOAL, PITCH, PLAYER, SIM, clamp } from '../core/constants.js';
 import { EventBus } from '../core/events.js';
 import { teamById, pickKits } from '../data/teams.js';
-import { Ball } from './ball.js';
+import { Ball, setSurface } from './ball.js';
 import { Player, emptyIntent } from './player.js';
 import { createTeamAI } from '../ai/index.js';
 import { createRules } from '../rules/index.js';
@@ -44,6 +44,7 @@ export class Match {
     this.events = new EventBus();
     this.ball = new Ball();
     this.ball.events = this.events;
+    setSurface(this.config.weather);
     this.time = 0; // real sim seconds since construction
     this.phase = 'prematch';
     this.setPiece = null;

@@ -180,6 +180,13 @@ export class Ball {
   }
 }
 
+// Pitch surface (wet pitches skid and bounce lower). Set by Match from config.weather.
+export const SURFACE = { roll: 1, bounce: 1 };
+export function setSurface(weather) {
+  SURFACE.roll = weather === 'rain' ? 0.78 : 1;
+  SURFACE.bounce = weather === 'rain' ? 0.88 : 1;
+}
+
 // Core integrator shared by live physics and predictions.
 export function integrate(p, v, w, h) {
   const r = BALL.radius;
@@ -200,7 +207,7 @@ export function integrate(p, v, w, h) {
       if (v.y < 0) {
         const vin = -v.y;
         // vertical restitution decreases a bit for hard impacts
-        const e = BALL.restitution * (vin > 12 ? 0.85 : 1);
+        const e = BALL.restitution * SURFACE.bounce * (vin > 12 ? 0.85 : 1);
         v.y = vin * e;
         if (v.y < 0.6) v.y = 0;
         // tangential: friction + spin coupling. Topspin (w perpendicular) makes it kick on.
@@ -220,7 +227,7 @@ export function integrate(p, v, w, h) {
     v.y = 0;
     const sp = Math.hypot(v.x, v.z);
     if (sp > 0) {
-      const dec = BALL.rollDecel + 0.035 * sp * sp * 0.1 + BALL.dragK * sp * sp * 0.4;
+      const dec = BALL.rollDecel * SURFACE.roll + 0.035 * sp * sp * 0.1 + BALL.dragK * sp * sp * 0.4;
       const ns = Math.max(0, sp - dec * h);
       const k = ns / sp;
       v.x *= k; v.z *= k;
@@ -270,6 +277,6 @@ function carry(speed, ang, backspin, landHeight) {
 // Ground pass: speed so that the ball arrives at `dist` with `arrive` m/s.
 export function groundPassSpeed(dist, arrive = 5) {
   // Approx decel: rollDecel plus a little drag term
-  const a = BALL.rollDecel + 0.35;
+  const a = BALL.rollDecel * SURFACE.roll + 0.35;
   return Math.sqrt(arrive * arrive + 2 * a * dist);
 }
