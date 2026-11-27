@@ -15,6 +15,18 @@ import { teamColors, inkFor, colorDistance, visibleColor } from '../art.js';
 import { StatsTracker, summarize, minuteLabel, nameOf } from '../summary.js';
 import { scorelineEl, statsEl } from './common.js';
 import { PITCH } from '../../core/constants.js';
+import { actionGlyph, padGlyph, padStyle } from '../labels.js';
+
+// Context-sensitive button prompts (EA FC style): [action, label] per control state.
+const PROMPTS = {
+  attack: [['pass', 'Pass'], ['through', 'Through'], ['lob', 'Lob / Cross'], ['shoot', 'Shoot'], ['sprint', 'Sprint'], ['shield', 'Shield'], ['@rs', 'Skills']],
+  loose: [['pass', 'Pass'], ['shoot', 'Shoot'], ['switch', 'Switch'], ['sprint', 'Sprint']],
+  defend: [['contain', 'Contain'], ['tackle', 'Tackle'], ['slide', 'Slide'], ['jockey', 'Jockey'], ['switch', 'Switch'], ['teamContain', 'Team press'], ['keeperRush', 'GK rush']],
+  keeper: [['pass', 'Throw'], ['lob', 'Kick'], ['shoot', 'Drop kick']],
+  setpiece: [['pass', 'Pass'], ['lob', 'Lob / Cross'], ['through', 'Through']],
+  setpieceShot: [['shoot', 'Shoot'], ['finesse', '+ Finesse'], ['chip', '+ Chip'], ['pass', 'Pass']],
+  penalty: [['shoot', 'Dive'], ['lob', 'Hold: high dive']],
+};
 
 const SETPIECE_LABEL = { kickoff: 'Kick-off', throwin: 'Throw-in', corner: 'Corner', goalkick: 'Goal kick', freekick: 'Free kick', penalty: 'Penalty', dropball: 'Drop ball' };
 
@@ -42,9 +54,11 @@ export function createHUD(ui) {
   const radar = h('div.cf-radar', {}, canvas);
   const banner = h('div.cf-banner');
   const fps = h('div.cf-fps');
+  const prompts = h('div.cf-prompts');
+  let promptKey = '';
   const halftime = h('div.cf-halftime', { hidden: true });
 
-  const el = h('div.cf-hud', {}, scorebug, sub, playercard, power, radar, halftime, banner, fps);
+  const el = h('div.cf-hud', {}, scorebug, sub, playercard, power, radar, prompts, halftime, banner, fps);
 
   // ---------------------------------------------------------------- state
   let config = null;
@@ -266,6 +280,34 @@ export function createHUD(ui) {
     if (ui.handlers.onContinue) ui.handlers.onContinue(); else match.rules?.continueFromBreak?.();
   }
 
+  // ---------------------------------------------------------------- button prompts
+  function renderPrompts(ctx, S) {
+    let set = null;
+    if (ctx && S.hud.prompts !== false && !match?.replay?.active) {
+      if (ctx.state === 'setpiece') set = ctx.setPiece === 'kickoff' ? null : (ctx.setPiece === 'penalty' || (ctx.setPiece === 'freekick' && ctx.direct)) ? PROMPTS.setpieceShot : PROMPTS.setpiece;
+      else set = PROMPTS[ctx.state] || null;
+    }
+    const pad = ui.nav.inputMode === 'gamepad';
+    const style = padStyle(ui.nav.pad?.id);
+    const key = set ? `${ctx.state}|${ctx.setPiece}|${pad}|${style}|${JSON.stringify(S.controls[pad ? 'gamepad' : 'keyboard'])}` : '';
+    if (key === promptKey) return;
+    promptKey = key;
+    prompts.classList.toggle('is-visible', !!set);
+    if (!set) return;
+    let html = '';
+    for (const [action, label] of set) {
+      let g;
+      if (action === '@rs') { if (!pad) { g = actionGlyph(S.controls, 'skill', false); } else g = '<span class="cf-glyph is-pad is-wide">RS</span>'; }
+      else {
+        if (pad && S.controls.gamepad[action] == null) continue;
+        if (!pad && !(S.controls.keyboard[action] || []).some(Boolean)) continue;
+        g = actionGlyph(S.controls, action, pad, style);
+      }
+      html += `<span class="cf-prompt">${g}<span>${esc(label)}</span></span>`;
+    }
+    prompts.innerHTML = html;
+  }
+
   // ---------------------------------------------------------------- update
   function fmtClock(s) {
     s = Math.max(0, Math.floor(s || 0));
@@ -344,6 +386,9 @@ export function createHUD(ui) {
     power.classList.toggle('is-visible', !!(pw && pw.visible));
     if (pw) powerLabel.textContent = { pass: 'Pass', shoot: 'Shot', lob: 'Lob', through: 'Through ball', cross: 'Cross' }[pw.action] || '';
     if (pw) powerFill.style.setProperty('--p', `${Math.max(0, Math.min(1, pw.value || 0)) * 100}%`);
+
+    // button prompts
+    renderPrompts(state.context, S);
 
     // radar
     radar.hidden = S.hud.radar === 'off';

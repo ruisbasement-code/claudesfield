@@ -82,6 +82,7 @@ function buildTab(id, ui) {
       sel('hud.indicator', 'Player indicator', [{ value: 'name', label: 'Name' }, { value: 'number', label: 'Number' }, { value: 'off', label: 'Arrow only' }], 'What appears above the player you control.'),
       tog('hud.clock', 'Match clock', 'Show the running clock beside the score.'),
       tog('hud.eventBanners', 'Event banners', 'On-screen captions for goals, cards, offsides and set pieces.'),
+      tog('hud.prompts', 'Button prompts', 'Show the buttons for the actions you can use right now: attacking, defending, set pieces. Matches your controller or keyboard.'),
     ];
     default: return [];
   }
@@ -143,7 +144,7 @@ export function settingsScreen(ui) {
     const seg = h('div.cf-segment');
     for (const d of ['keyboard', 'gamepad']) {
       const b = h('button', { nav: true, class: device === d ? 'is-current' : null }, d === 'keyboard' ? 'Keyboard' : 'Gamepad');
-      b.cfHelp = { title: d === 'keyboard' ? 'Keyboard' : 'Gamepad', text: d === 'keyboard' ? 'Each action can have two keys. Select a slot and press the new key. Delete clears a slot.' : 'Select an action and press the gamepad button to use. Layout follows the standard Xbox / PlayStation mapping.' };
+      b.cfHelp = { title: d === 'keyboard' ? 'Keyboard' : 'Gamepad', text: d === 'keyboard' ? 'Each action can have two keys. Select a slot and press the new key. Delete clears a slot.' : 'Defaults follow the EA SPORTS FC Classic layout: A pass, B shoot, X lob, Y through ball, RT sprint, LT shield or jockey, LB switch, RB finesse. Select an action and press the button to use.' };
       b.addEventListener('click', () => { if (device !== d) { device = d; sfx.change(); setTab('controls', false); ui.nav.focus(list.querySelector('.cf-segment .is-current'), { silent: true }); } });
       seg.append(b);
     }
@@ -154,6 +155,17 @@ export function settingsScreen(ui) {
       const status = h('div', { style: { padding: '0 18px 14px', color: 'var(--muted)', fontSize: '14px' } },
         pad ? `Connected: ${pad.id.replace(/\(.*?\)/g, '').trim()}` : 'No gamepad detected. Connect one and press any button.');
       list.append(status);
+      const sticks = h('div.cf-bind-head.cf-overline.is-pad', {}, h('span', {}, 'Layout: EA FC Classic'), h('span', {}, 'Stick'));
+      sticks.style.marginTop = '6px';
+      list.append(sticks);
+      for (const [label, stick, text] of [
+        ['Move / dribble', 'LS', 'The left stick moves your player and aims passes and shots. Not rebindable.'],
+        ['Skill moves · manual switch', 'RS', 'Flick the right stick when you have the ball for a skill move: forwards or sideways knocks it into space, back towards yourself drags it back. Without the ball, flick it towards a team-mate to switch to them. Not rebindable.'],
+      ]) {
+        const cell = h('button.cf-key', { nav: true }, stick);
+        cell.cfHelp = { title: label, text };
+        list.append(h('div.cf-bind.is-pad', {}, h('div.cf-row-label', {}, label), cell));
+      }
     }
 
     const isPad = device === 'gamepad';
@@ -164,7 +176,8 @@ export function settingsScreen(ui) {
       head.style.marginTop = list.querySelector('.cf-bind') ? '26px' : '6px';
       list.append(head);
       for (const a of acts) {
-        const row = h('div.cf-bind', { class: isPad ? 'is-pad' : null }, h('div.cf-row-label', {}, a.label));
+        const label = isPad && a.id === 'skill' ? 'Skill move (extra button, optional)' : a.label;
+        const row = h('div.cf-bind', { class: isPad ? 'is-pad' : null }, h('div.cf-row-label', {}, label));
         if (isPad) row.append(bindCell(a, null));
         else { row.append(bindCell(a, 0)); row.append(bindCell(a, 1)); }
         list.append(row);

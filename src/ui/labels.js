@@ -32,3 +32,26 @@ export function buttonLabel(index, style = 'xbox') {
 
 // Face-button colours (Xbox convention), used for small glyphs.
 export const FACE_COLORS = { 0: '#5dbb46', 1: '#e0463c', 2: '#3d7fd9', 3: '#f2c230' };
+
+const PS_FACE = { 0: '✕', 1: '○', 2: '□', 3: '△' };
+const PS_COLORS = { 0: '#7aa7e6', 1: '#e86a5f', 2: '#d88fc8', 3: '#5cc9a7' };
+
+/** HTML for one gamepad button glyph: coloured face buttons, pill-shaped shoulders/triggers. */
+export function padGlyph(index, style = 'xbox') {
+  if (index == null) return '<span class="cf-glyph">—</span>';
+  if (index <= 3) {
+    const bg = style === 'ps' ? PS_COLORS[index] : FACE_COLORS[index];
+    const sym = style === 'ps' ? PS_FACE[index] : buttonLabel(index, style);
+    return `<span class="cf-glyph is-pad" style="background:${bg}">${sym}</span>`;
+  }
+  const arrows = { 12: '▲', 13: '▼', 14: '◀', 15: '▶' };
+  const t = arrows[index] ? `D-pad ${arrows[index]}` : buttonLabel(index, style);
+  return `<span class="cf-glyph is-pad is-wide">${t}</span>`;
+}
+
+/** HTML glyph for whatever the given action is bound to on the current device. */
+export function actionGlyph(controls, action, pad, style = 'xbox') {
+  if (pad) return padGlyph(controls.gamepad?.[action], style);
+  const k = (controls.keyboard?.[action] || []).find(Boolean);
+  return `<span class="cf-glyph">${keyLabel(k)}</span>`;
+}

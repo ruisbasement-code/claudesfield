@@ -112,6 +112,8 @@ export class Game {
     return {
       activePlayer: p ? { name: p.data.name, short: p.data.short, number: p.data.number, pos: p.data.pos, stamina: p.stamina, team: p.team.id, id: p.id } : null,
       power: { value: hc?.power || 0, visible: !!hc?.charging, action: hc?.charging?.action || null },
+      // which control set applies right now, for the HUD button prompts
+      context: hc ? { state: hc.state, setPiece: m.setPiece?.type || null, direct: !!m.setPiece?.direct } : null,
     };
   }
 

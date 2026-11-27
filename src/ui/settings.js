@@ -18,10 +18,17 @@ export const ACTIONS = [
   { id: 'shoot', label: 'Shoot / Volley', group: 'attack' },
   { id: 'finesse', label: 'Finesse shot modifier', group: 'attack' },
   { id: 'chip', label: 'Chip shot modifier', group: 'attack' },
+  { id: 'shield', label: 'Shield / protect ball', group: 'attack' },
   { id: 'skill', label: 'Skill move', group: 'attack' },
-  { id: 'tackle', label: 'Standing tackle', group: 'defend' },
+  { id: 'contain', label: 'Contain (hold)', group: 'defend' },
+  { id: 'tackle', label: 'Standing tackle / push', group: 'defend' },
   { id: 'slide', label: 'Slide tackle', group: 'defend' },
+  { id: 'jockey', label: 'Jockey (hold)', group: 'defend' },
+  { id: 'teamContain', label: 'Teammate contain (hold)', group: 'defend' },
+  { id: 'keeperRush', label: 'Rush goalkeeper out (hold)', group: 'defend' },
   { id: 'switch', label: 'Switch player', group: 'defend' },
+  { id: 'tacticsAttack', label: 'Mentality: more attacking', group: 'general' },
+  { id: 'tacticsDefend', label: 'Mentality: more defensive', group: 'general' },
   { id: 'mentality', label: 'Cycle team mentality', group: 'general' },
   { id: 'pause', label: 'Pause', group: 'general' },
 ];
@@ -54,28 +61,47 @@ const KEYBOARD_DEFAULTS = {
   finesse: ['KeyE', null],
   chip: ['KeyC', null],
   skill: ['Space', null],
+  shield: ['KeyF', null],
+  contain: ['KeyU', null],
   tackle: ['KeyJ', null],
   slide: ['KeyK', null],
+  jockey: ['KeyF', null],
+  teamContain: ['KeyO', null],
+  keeperRush: ['KeyY', null],
   switch: ['KeyQ', null],
+  tacticsAttack: ['BracketRight', null],
+  tacticsDefend: ['BracketLeft', null],
   mentality: ['KeyM', null],
   pause: ['Escape', 'KeyP'],
 };
 
 // Gamepad bindings use W3C "standard" mapping button indices (Xbox names / PlayStation names).
-const GAMEPAD_DEFAULTS = {
-  pass: 0,     // A / Cross
-  shoot: 1,    // B / Circle
-  lob: 2,      // X / Square
-  through: 3,  // Y / Triangle
-  finesse: 5,  // RB / R1
-  chip: 4,     // LB / L1  (attack)
-  sprint: 7,   // RT / R2
-  skill: 11,   // R3
-  tackle: 1,   // B / Circle (defence)
-  slide: 2,    // X / Square (defence)
-  switch: 4,   // LB / L1 (defence)
-  mentality: 8, // View / Share
-  pause: 9,    // Menu / Options
+// Default = the EA SPORTS FC "Classic" controller layout. The left stick moves; the right stick
+// does skill moves (attacking) and manual player switching (defending) and is not rebindable.
+export const GAMEPAD_DEFAULTS = {
+  // attacking
+  pass: 0,      // A / Cross       short pass, header
+  shoot: 1,     // B / Circle      shoot, volley
+  lob: 2,       // X / Square      lob pass, cross
+  through: 3,   // Y / Triangle    through ball
+  chip: 4,      // LB / L1         + B = chip shot
+  finesse: 5,   // RB / R1         + B = finesse shot
+  shield: 6,    // LT / L2         protect the ball
+  skill: null,  // right stick
+  // defending
+  contain: 0,   // A / Cross       hold to contain
+  tackle: 1,    // B / Circle      standing tackle / push
+  slide: 2,     // X / Square      slide tackle
+  keeperRush: 3, // Y / Triangle   hold to rush the keeper out
+  switch: 4,    // LB / L1         change player
+  teamContain: 5, // RB / R1       hold for teammate contain
+  jockey: 6,    // LT / L2         hold to jockey
+  // general
+  sprint: 7,    // RT / R2
+  mentality: 8, // View / Create
+  pause: 9,     // Menu / Options
+  tacticsDefend: 14, // D-pad left
+  tacticsAttack: 15, // D-pad right
 };
 
 export const DEFAULTS = Object.freeze({
@@ -112,6 +138,7 @@ export const DEFAULTS = Object.freeze({
     indicator: 'name',      // 'name' | 'number' | 'off'
     clock: true,
     eventBanners: true,
+    prompts: true,          // context button prompts during play
   },
   controls: {
     keyboard: KEYBOARD_DEFAULTS,

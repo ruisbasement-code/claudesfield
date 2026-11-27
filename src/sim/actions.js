@@ -419,6 +419,7 @@ export function executeTackle(p, match) {
   chance -= clamp(1 - inFront, 0, 1) * 0.3;
   chance -= (Math.hypot(victim.vel.x, victim.vel.z) / 9) * 0.12; // harder vs fast dribblers
   if (fromBehind) chance -= 0.2;
+  if (victim.shielding) chance -= 0.1 + (victim.stats.physical / 99) * 0.15; // body between man and ball
   const won = Math.random() < clamp(chance, 0.08, 0.92);
   let contact = false;
   if (won) {

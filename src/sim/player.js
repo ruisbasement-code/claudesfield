@@ -120,6 +120,11 @@ export class Player {
     const sprint = !!it.sprint && mag > 0.3 && this.stamina > 0.05;
     let top = this.topSpeed(sprint);
     if (this.state === 'tackle' || this.state === 'kick') top *= 0.5;
+    // shielding (attacking LT) and jockeying (defending LT): slow, balanced steps; RT + LT = sprint jockey
+    this.shielding = !!it.shield && this.hasBall();
+    if (this.shielding) top *= 0.42;
+    else if (it.jockey) top *= sprint ? 0.78 : 0.55;
+    it.shield = false; it.jockey = false; // per-frame flags, re-set by the human controller each step
     if (pinned) { mx = 0; mz = 0; mag = 0; }
     const accel = 7 + (this.stats.accel / 99) * 7;
     this.steer(mx * top, mz * top, dt, accel);
