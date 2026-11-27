@@ -107,7 +107,8 @@ export class Referee {
     if (this.mode === 'pre') this.beginMatch();
 
     const c = m.clock;
-    c.running = ['play', 'restart', 'setpiece'].includes(this.mode) && !this.shootout;
+    // The clock stops for goals/replays/breaks and while waiting for any kick-off.
+    c.running = ['play', 'restart', 'setpiece'].includes(this.mode) && !this.shootout && this.pendingType !== 'kickoff';
     if (c.running) {
       c.seconds += dt * this.scale;
       this.checkPeriodEnd();
@@ -240,6 +241,7 @@ export class Referee {
   scheduleRestart(r, delay = 1.6) {
     this.mode = 'restart';
     this.restart = null;
+    this.pendingType = r.type;
     this.clearTimers('restart');
     this.after(delay, () => {
       if (this.endPending && !this.shootout && r.type !== 'penalty') { this.endPeriod(); return; }
@@ -348,6 +350,7 @@ export class Referee {
     if (!r || r.taken) return;
     r.taken = true;
     r.time = this.match.clock.seconds;
+    this.pendingType = null;
     this.releaseLocks();
     this.mode = this.shootout ? 'shootout' : 'play';
     if (this.shootout) this.shootout.onKick(r.taker);
