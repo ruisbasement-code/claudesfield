@@ -3,6 +3,7 @@ import { h, selectRow, button } from '../dom.js';
 import { crestSVG, kitSVG, starsSVG, teamColors, colorDistance } from '../art.js';
 import { sfx } from '../sound.js';
 import { TEAMS } from '../../data/teams.js';
+import { FORMATION_NAMES } from '../../ai/formations.js';
 import { DIFFICULTIES, DIFFICULTY_LABELS } from '../../core/constants.js';
 import { getSettings, setSetting, DIFFICULTY_BLURBS } from '../settings.js';
 
@@ -37,7 +38,10 @@ export function setupScreen(ui) {
     extraTime: false,
     penalties: true,
     referee: 'normal',
+    formation: { home: null, away: null }, // null = club default
   };
+  const formationOf = (side) => state.formation[side] || TEAMS[state[side]].formation;
+  const mySide = () => (state.side === 'away' ? 'away' : 'home');
 
   const title = h('h1.cf-h1', {}, 'Kick Off');
   const overline = h('div.cf-overline', {}, 'Exhibition · Match setup');
@@ -72,8 +76,10 @@ export function setupScreen(ui) {
       let i = state[which];
       do { i = (i + d + TEAMS.length) % TEAMS.length; } while (i === other && TEAMS.length > 1);
       state[which] = i;
+      state.formation[which] = null;
       autoKits(which);
       render();
+      formRow?.render();
     }
 
     function render() {
@@ -85,7 +91,7 @@ export function setupScreen(ui) {
         h('div', { html: crestSVG(t) }).firstChild,
         h('div', { style: { minWidth: 0 } },
           h('div.cf-teamname', {}, t.name),
-          h('div.cf-teamcity', {}, `${t.city || ''}${t.formation ? ' · ' + t.formation : ''}`),
+          h('div.cf-teamcity', {}, `${t.city || ''} · ${formationOf(which)}`),
           h('div.cf-stars', { html: starsSVG(teamStars(t)) })));
       ratings.innerHTML = '';
       for (const [k, lbl] of [['ovr', 'OVR'], ['att', 'ATT'], ['mid', 'MID'], ['def', 'DEF']]) {
@@ -140,6 +146,7 @@ export function setupScreen(ui) {
     state.side = SIDES[Math.max(0, Math.min(2, Math.floor(((e.clientX - r.left) / r.width) * 3)))]; renderSide(); sfx.change();
   });
   function renderSide() {
+    formRow?.render();
     const i = SIDES.indexOf(state.side);
     pad.style.left = `calc(${i * 33.333}% + 5px)`;
     pad.textContent = state.side === 'none' ? 'CPU' : 'You';
@@ -180,6 +187,13 @@ export function setupScreen(ui) {
     get: () => (state.extraTime ? 'et' : state.penalties ? 'pens' : 'none'),
     set: (v) => { state.extraTime = v === 'et'; state.penalties = v !== 'none'; },
   });
+  const formRow = selectRow({
+    label: 'Your formation',
+    options: (FORMATION_NAMES || []).map((f) => ({ value: f, label: f })),
+    get: () => formationOf(mySide()),
+    set: (v) => { state.formation[mySide()] = v; (mySide() === 'home' ? homeCard : awayCard).render(); },
+    help: 'Shape your team lines up in. The AI uses it for positioning and runs.',
+  });
   const refRow = selectRow({
     label: 'Referee',
     options: [{ value: 'lenient', label: 'Lenient' }, { value: 'normal', label: 'Normal' }, { value: 'strict', label: 'Strict' }],
@@ -188,7 +202,7 @@ export function setupScreen(ui) {
 
   const options = h('div.cf-setup-options', {},
     h('div', {}, diffRow, halfRow, extraRow, diffBlurb),
-    h('div', {}, refRow, todRow, weatherRow));
+    h('div', {}, formRow, refRow, todRow, weatherRow));
 
   const playBtn = button('Play match', { primary: true, onClick: () => ui.startMatch(buildFromState()) });
   const backBtn = button('Back', { onClick: () => ui.showTitle() });
@@ -203,7 +217,7 @@ export function setupScreen(ui) {
   function renderAll() { homeCard.render(); awayCard.render(); renderSide(); updBlurb(); diffRow.render(); halfRow.render(); }
 
   function buildConfig({ mode, home, away, homeKit = 'home', awayKit, side = 'home', difficulty, halfMinutes, timeOfDay = 'evening', weather = 'clear',
-    extraTime = false, penalties = false, referee = 'normal' }) {
+    extraTime = false, penalties = false, referee = 'normal', formations = null }) {
     const gp = g();
     return {
       mode: mode === 'shootout' || mode === 'penalties' ? 'penalties' : 'match',
@@ -220,7 +234,9 @@ export function setupScreen(ui) {
       halfMinutes: halfMinutes ?? g().halfMinutes,
       timeOfDay, weather,
       // Convenience for consumers that want the data without importing teams:
-      home, away, homeData: home, awayData: away,
+      home, away,
+      homeData: formations?.home && formations.home !== home.formation ? { ...home, formation: formations.home } : home,
+      awayData: formations?.away && formations.away !== away.formation ? { ...away, formation: formations.away } : away,
       homeKitData: home.kits?.[homeKit], awayKitData: away.kits?.[awayKit || resolveKits(home, away, homeKit)],
     };
   }
@@ -229,6 +245,7 @@ export function setupScreen(ui) {
       mode: state.mode, home: TEAMS[state.home], away: TEAMS[state.away], homeKit: state.homeKit, awayKit: state.awayKit,
       side: state.side, timeOfDay: state.timeOfDay, weather: state.weather,
       extraTime: state.extraTime, penalties: state.penalties, referee: state.referee,
+      formations: { home: formationOf('home'), away: formationOf('away') },
     });
   }
 
@@ -242,6 +259,7 @@ export function setupScreen(ui) {
       overline.textContent = mode === 'shootout' ? 'Sudden death · Setup' : 'Exhibition · Match setup';
       halfRow.hidden = mode === 'shootout';
       extraRow.hidden = mode === 'shootout';
+      formRow.hidden = mode === 'shootout';
       todRow.hidden = false;
       playBtn.textContent = mode === 'shootout' ? 'Take penalties' : 'Play match';
       autoKits('home');

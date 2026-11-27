@@ -438,6 +438,8 @@
 }
 @media (max-height: 820px) {
   .cf-keyplayers { display: none; }
+}
+@media (max-height: 960px) {
   .cf-setup-body { padding-top: 16px; }
   .cf-teamcard { gap: 10px; padding: 14px 22px; }
   .cf-teampick { padding: 4px 0; }
