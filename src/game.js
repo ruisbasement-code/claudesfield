@@ -39,6 +39,7 @@ export class Game {
     const a = s.audio || {};
     this.audio.setVolume({ master: a.master ?? 0.8, sfx: a.sfx ?? 0.8, crowd: a.crowd ?? 0.7 });
     if (this.match) this.match.config.autoSwitch = s.gameplay?.autoSwitch !== 'off';
+    for (const c of this.controllers || []) c.assist = { pass: s.gameplay?.passAssist, shot: s.gameplay?.shotAssist };
   }
 
   startMatch(config) {
@@ -50,11 +51,13 @@ export class Game {
     this.match = match;
     this.controllers = match.teams.filter((t) => t.human).map((t) => new HumanController(match, t, this.input, () => this.renderer.rig.basis()));
     match.humanControllers = this.controllers;
+    for (const c of this.controllers) c.assist = { pass: this.settings?.gameplay?.passAssist, shot: this.settings?.gameplay?.shotAssist };
     this.renderer.attach(match);
     this.renderer.setEnvironment(cfg.timeOfDay || 'night', cfg.weather || 'clear');
     this.hookAudio(match);
     this.paused = false;
     this.acc = 0;
+    this.prevPos = null;
     this.fullTimeSent = false;
     this.emit('matchStart', match);
     return match;
@@ -91,6 +94,15 @@ export class Game {
 
   setPaused(p) { this.paused = p; if (this.match) this.match.paused = p; }
 
+  // previous-step positions for render interpolation
+  snapshot(m) {
+    if (!this.prevPos || this.prevPos.players.length !== m.players.length) {
+      this.prevPos = { players: m.players.map(() => ({ x: 0, z: 0 })), ball: { x: 0, y: 0, z: 0 } };
+    }
+    m.players.forEach((p, i) => { const q = this.prevPos.players[i]; q.x = p.pos.x; q.z = p.pos.z; });
+    const b = this.prevPos.ball; b.x = m.ball.pos.x; b.y = m.ball.pos.y; b.z = m.ball.pos.z;
+  }
+
   hudState() {
     const m = this.match;
     if (!m) return null;
@@ -115,6 +127,7 @@ export class Game {
       this.acc += dt;
       let steps = 0;
       while (this.acc >= SIM.dt && steps < 6) {
+        this.snapshot(m);
         m.update(SIM.dt);
         this.acc -= SIM.dt;
         steps++;
@@ -130,6 +143,8 @@ export class Game {
     this.audio.update(dt, !!m && !this.paused);
     const hc = this.controllers[0];
     const view = {
+      alpha: playing ? this.acc / SIM.dt : 1,
+      prev: this.prevPos,
       aim: hc?.aimPoint || null,
       receiver: hc?.previewReceiver || null,
       attackSide: hc ? hc.team.side : 1,

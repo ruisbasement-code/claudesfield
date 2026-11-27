@@ -30,6 +30,7 @@ async function boot() {
   game.inputEnabled = () => ui.mode === 'match' && !game.match?.replay?.active;
   game.on('frame', () => { if (game.match && ui.mode === 'match') ui.hud.update(game.hudState()); });
   game.on('fullTime', () => { if (ui.mode === 'match') ui.showResult(); });
+  ui.setLiveBackground?.(true);
   window.__ui = ui;
 }
 boot();

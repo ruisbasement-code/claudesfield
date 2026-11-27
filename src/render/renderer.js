@@ -259,7 +259,17 @@ export class Renderer {
     } else {
       this.replayStates = null;
       ballPos = match.ball.pos;
-      for (const m of this.playerModels) m.update(dt);
+      const prev = view.prev, al = Math.min(1, Math.max(0, view.alpha ?? 1));
+      if (prev && prev.players.length === this.playerModels.length && al < 1) {
+        const b = prev.ball;
+        ballPos = new THREE.Vector3(b.x + (ballPos.x - b.x) * al, b.y + (ballPos.y - b.y) * al, b.z + (ballPos.z - b.z) * al);
+        this.playerModels.forEach((m, i) => {
+          m.update(dt);
+          const q = prev.players[i], p = m.player;
+          m.root.position.x = q.x + (p.pos.x - q.x) * al;
+          m.root.position.z = q.z + (p.pos.z - q.z) * al;
+        });
+      } else for (const m of this.playerModels) m.update(dt);
       const sp = match.setPiece;
       const humanTaker = sp && sp.team.human;
       const humanKeeper = sp && sp.type === 'penalty' && sp.team.opponent.human;

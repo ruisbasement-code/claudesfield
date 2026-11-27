@@ -137,6 +137,18 @@ export class HumanController {
           chip: input.isDown('chip'),
         };
         if (this.aimPoint && a === 'shoot') action.target = this.aimPoint.clone();
+        // assistance levels from settings: 'assisted' | 'semi' | 'manual'
+        const passAssist = this.assist?.pass || 'assisted';
+        if (a !== 'shoot' && passAssist !== 'assisted') {
+          const d = dir || this.lastMove;
+          if (passAssist === 'manual' && d) {
+            const l = Math.hypot(d.x, d.z) || 1;
+            const dist = a === 'lob' ? 12 + this.power * 40 : a === 'through' ? 10 + this.power * 30 : 6 + this.power * 28;
+            action.target = new Vector3(p.pos.x + (d.x / l) * dist, 0, p.pos.z + (d.z / l) * dist);
+          }
+          action.error = passAssist === 'manual' ? 0.8 : 1.35;
+        }
+        if (a === 'shoot' && this.assist?.shot === 'manual') action.error = 1.4;
         if (a === 'shoot' && !dir) action.dir = null;
         if (a === 'lob' && p.pos.x * this.team.side > PITCH.halfL - 30 && Math.abs(p.pos.z) > PITCH.boxHalfW - 4) action.type = 'cross';
         // keeper holding the ball: pass = throw, lob/shoot = kick
