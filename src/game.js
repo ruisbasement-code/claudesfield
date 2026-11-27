@@ -150,6 +150,7 @@ export class Game {
       prev: this.prevPos,
       aim: hc?.aimPoint || null,
       receiver: hc?.previewReceiver || null,
+      pass: hc?.enabled && m && !this.paused ? hc.passIndicator() : null,
       attackSide: hc ? hc.team.side : 1,
       excite: this.audio.excite,
     };

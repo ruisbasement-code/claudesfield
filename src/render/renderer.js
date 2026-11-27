@@ -5,6 +5,8 @@ import { buildStadium, buildSky } from './stadium.js';
 import { PlayerModel } from './playerModel.js';
 import { CameraRig } from './camera.js';
 
+const PASS_PATH_N = 32;
+
 function ballTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 128;
@@ -103,6 +105,18 @@ export class Renderer {
     this.receiverRing.rotation.x = -Math.PI / 2;
     this.receiverRing.visible = false;
     this.scene.add(this.receiverRing);
+    // FC-style pass indicator: the ball's path to where the pass is played, and a target disc
+    const pathGeo = new THREE.BufferGeometry();
+    pathGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PASS_PATH_N * 3), 3));
+    this.passPath = new THREE.Line(pathGeo, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.7, gapSize: 0.45, transparent: true, opacity: 0.85, depthWrite: false }));
+    this.passPath.frustumCulled = false;
+    this.passPath.visible = false;
+    this.passPath.renderOrder = 9;
+    this.scene.add(this.passPath);
+    this.passTarget = new THREE.Mesh(new THREE.CircleGeometry(0.45, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }));
+    this.passTarget.rotation.x = -Math.PI / 2;
+    this.passTarget.visible = false;
+    this.scene.add(this.passTarget);
 
     this.playerModels = [];
     this.officialModels = [];
@@ -212,6 +226,32 @@ export class Renderer {
     this.match = null;
   }
 
+  updatePassIndicator(pass, view) {
+    if (!pass || !pass.target) { this.passPath.visible = this.passTarget.visible = false; return; }
+    const a = pass.from, b = pass.target;
+    const D = Math.hypot(b.x - a.x, b.z - a.z);
+    if (D < 1) { this.passPath.visible = this.passTarget.visible = false; return; }
+    const lofted = pass.kind === 'lob' || pass.kind === 'cross';
+    const apex = lofted ? Math.min(9, 1.5 + D * 0.18) : 0;
+    const pos = this.passPath.geometry.attributes.position;
+    for (let i = 0; i < PASS_PATH_N; i++) {
+      const t = i / (PASS_PATH_N - 1);
+      const y = lofted ? 4 * apex * t * (1 - t) + 0.05 : 0.06;
+      pos.setXYZ(i, a.x + (b.x - a.x) * t, Math.max(0.06, y + (a.y - 0.11) * (1 - t)), a.z + (b.z - a.z) * t);
+    }
+    pos.needsUpdate = true;
+    this.passPath.computeLineDistances();
+    this.passPath.visible = !(pass.live && lofted); // in flight, a lofted ball just shows where it lands
+    const col = view.markerColor || 0xf2c14e;
+    this.passPath.material.color.set(pass.live ? 0xffffff : col);
+    this.passPath.material.opacity = pass.live ? 0.45 : 0.9;
+    this.passTarget.visible = true;
+    this.passTarget.position.set(b.x, 0.03, b.z);
+    this.passTarget.material.color.set(col);
+    this.passTarget.scale.setScalar(0.8 + (pass.power ?? 0.5) * 0.6);
+    this.passTarget.material.opacity = pass.live ? 0.35 : 0.6;
+  }
+
   render(dt, view = {}) {
     const match = this.match;
     const rig = this.rig;
@@ -223,6 +263,7 @@ export class Renderer {
       this.marker.visible = this.ring.visible = this.marker2.visible = false;
       this.aim.visible = false;
       this.receiverRing.visible = false;
+      this.passPath.visible = this.passTarget.visible = false;
       this.gl.render(this.scene, rig.camera);
       return;
     }
@@ -365,10 +406,17 @@ export class Renderer {
       this.aim.position.copy(view.aim);
       this.aim.lookAt(rig.camera.position);
     } else this.aim.visible = false;
-    if (view.receiver && !replay) {
+    const pass = !replay ? view.pass : null;
+    const rcv = pass?.receiver || (!replay ? view.receiver : null);
+    if (rcv) {
       this.receiverRing.visible = true;
-      this.receiverRing.position.set(view.receiver.pos.x, 0.025, view.receiver.pos.z);
+      this.receiverRing.position.set(rcv.pos.x, 0.025, rcv.pos.z);
+      const pulse = 1 + Math.sin(performance.now() / 120) * 0.08;
+      this.receiverRing.scale.setScalar(pass ? 1.25 * pulse : 1);
+      this.receiverRing.material.opacity = pass ? 0.9 : 0.6;
+      this.receiverRing.material.color.set(view.markerColor || 0xf2c14e);
     } else this.receiverRing.visible = false;
+    this.updatePassIndicator(pass, view);
 
     // camera
     const focus = new THREE.Vector3(ballPos.x, 0, ballPos.z);

@@ -122,12 +122,17 @@ export class Player {
     if (this.state === 'tackle' || this.state === 'kick') top *= 0.5;
     // shielding (attacking LT) and jockeying (defending LT): slow, balanced steps; RT + LT = sprint jockey
     this.shielding = !!it.shield && this.hasBall();
+    const jockey = !!it.jockey;
     if (this.shielding) top *= 0.42;
-    else if (it.jockey) top *= sprint ? 0.78 : 0.55;
+    else if (jockey) top *= sprint ? 0.78 : 0.55;
     it.shield = false; it.jockey = false; // per-frame flags, re-set by the human controller each step
     if (pinned) { mx = 0; mz = 0; mag = 0; }
     const accel = 7 + (this.stats.accel / 99) * 7;
-    this.steer(mx * top, mz * top, dt, accel);
+    // side-stepping (jockey, shield, facing a fixed point) and keepers move freely in any direction;
+    // everyone else runs with momentum: eased acceleration, carved turns and planted cut-backs.
+    const strafe = this.isGK || pinned || this.shielding || jockey || it.face != null || this.state !== 'run';
+    if (strafe) this.steer(mx * top, mz * top, dt, accel);
+    else this.locomote(mx, mz, mag, top, dt);
 
     // stamina
     if (sprint) this.stamina -= dt * (0.012 + (1 - this.stats.stamina / 99) * 0.02);
@@ -182,6 +187,49 @@ export class Player {
         if (canReachBall(this, match)) executeBallAction(this, a, match);
         else { this.bufferedAction = a; this.bufferTime = 0.45; }
     }
+  }
+
+  // FC-style locomotion. Acceleration tapers towards top speed, the turn rate falls as speed
+  // rises (so sprinting players carve wide arcs), very sharp changes of direction brake first
+  // and then pivot, and letting go of the stick decelerates over a few strides instead of stopping dead.
+  locomote(mx, mz, mag, top, dt) {
+    const s = this.stats;
+    const agil = clamp((s.accel * 0.5 + s.dribbling * 0.3 + s.pace * 0.2) / 99, 0, 1);
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const want = mag * top;
+    const accel = 8 + (s.accel / 99) * 8;
+    const brake = 12 + agil * 6;
+    if (want < 0.05) {
+      const ns = Math.max(0, speed - brake * 0.85 * dt);
+      if (speed > 0) this.vel.multiplyScalar(ns / speed);
+      return;
+    }
+    const H = Math.atan2(mz, mx);
+    let h = speed > 0.05 ? Math.atan2(this.vel.z, this.vel.x) : H;
+    let d = H - h;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    const ad = Math.abs(d);
+    let target = want;
+    let wMax = ((9 + agil * 7) / (1 + speed * 0.26)) * (this.hasBall() ? 0.85 + (s.dribbling / 99) * 0.25 : 1);
+    if (speed < 1.2) {
+      h = H; // from (nearly) standing: just set off the new way
+    } else if (ad > 1.9 && speed > 3) {
+      target = 0; // cut-back: plant and brake before turning
+      wMax *= 0.5;
+    } else {
+      target = want * (1 - 0.4 * Math.min(1, ad / 1.6)); // slow a little into a turn
+      if (ad > 1.9) wMax *= 1.8;
+    }
+    const step = wMax * dt;
+    h += ad < step ? d : Math.sign(d) * step;
+    let ns;
+    if (target > speed) {
+      const room = clamp(1 - speed / Math.max(top, 0.1), 0, 1);
+      ns = Math.min(target, speed + accel * (0.3 + 0.7 * room) * dt);
+    } else ns = Math.max(target, speed - brake * dt);
+    this.vel.x = Math.cos(h) * ns;
+    this.vel.z = Math.sin(h) * ns;
   }
 
   steer(tx, tz, dt, accel) {

@@ -130,6 +130,14 @@ export class Input {
       if (this.keyDown('moveRight')) x += 1;
       if (this.keyDown('moveUp')) y -= 1;
       if (this.keyDown('moveDown')) y += 1;
+      // letting go of a diagonal never releases both keys on the same frame: hold the diagonal for a
+      // moment so the player doesn't flick to a straight line just before stopping
+      const now = performance.now();
+      const diag = x !== 0 && y !== 0;
+      const prev = this.kbDiag;
+      if (diag) this.kbDiag = { x, y, t: now };
+      else if (prev && now - prev.t < 70 && (x === prev.x || y === prev.y) && (x || y)) { x = prev.x; y = prev.y; }
+      else if (!(x || y) && prev && now - prev.t < 70) { x = 0; y = 0; this.kbDiag = null; }
       const m = Math.hypot(x, y);
       if (m > 0) { x /= m; y /= m; }
     }

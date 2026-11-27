@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { BALL, GOAL, PITCH, PLAYER, clamp, randn, rand } from '../core/constants.js';
-import { solveLobSpeed, groundPassSpeed } from './ball.js';
+import { solveLobSpeed, groundPassSpeed, SURFACE } from './ball.js';
 
 const UP = new Vector3(0, 1, 0);
 const _a = new Vector3();
@@ -39,30 +39,49 @@ export function pressureOn(p, match) {
 }
 
 // ---------------------------------------------------------------------------
-// Receiver selection (used by human assisted passing; AI may call it too)
+// Receiver selection (FC-style assisted passing; AI may call it too)
+// The stick direction picks the team-mate (a cone around it, angle weighted most), and the
+// power held biases the choice towards nearer (tap) or further (long hold) options.
+// opts: { power: 0..1 | null, prev: Player | null (hysteresis for the on-screen preview) }
 // ---------------------------------------------------------------------------
-export function pickReceiver(p, dir, match, kind = 'pass') {
+export function pickReceiver(p, dir, match, kind = 'pass', opts = {}) {
   let dx = dir?.x || 0, dz = dir?.z || 0;
   let l = Math.hypot(dx, dz);
   if (l < 0.2) { dx = Math.cos(p.facing); dz = Math.sin(p.facing); l = 1; }
   dx /= l; dz /= l;
-  let best = null, bestScore = -Infinity;
-  for (const m of p.team.players) {
-    if (m === p || m.sentOff) continue;
-    if (m.isGK && kind !== 'pass') continue;
-    const vx = m.pos.x - p.pos.x, vz = m.pos.z - p.pos.z;
-    const d = Math.hypot(vx, vz);
-    if (d < 2) continue;
-    const cos = (vx * dx + vz * dz) / d;
-    if (cos < 0.55) continue;
-    let score = cos * 3 - d / (kind === 'lob' ? 60 : 30);
-    if (kind === 'through') score += ((m.pos.x - p.pos.x) * p.team.side) / 40;
-    // penalise passes with an opponent close to the lane
-    score -= laneBlock(p.pos, m.pos, p.team.opponent) * (kind === 'lob' ? 0.2 : 1.2);
-    if (m.isGK) score -= 1.5;
-    if (score > bestScore) { bestScore = score; best = m; }
-  }
-  return best;
+  const power = opts.power ?? null;
+  const lofted = kind === 'lob' || kind === 'cross';
+  const pref = power == null ? null
+    : lofted ? 16 + power * 34
+    : kind === 'through' ? 12 + power * 26
+    : 7 + power * 28;
+  const pick = (maxAng) => {
+    let best = null, bestScore = -Infinity;
+    for (const m of p.team.players) {
+      if (m === p || m.sentOff) continue;
+      if (m.isGK && kind !== 'pass') continue;
+      const vx = m.pos.x - p.pos.x, vz = m.pos.z - p.pos.z;
+      const d = Math.hypot(vx, vz);
+      if (d < 2.5) continue;
+      const ang = Math.acos(clamp((vx * dx + vz * dz) / d, -1, 1));
+      if (ang > maxAng) continue;
+      let score = -ang * 2.6;
+      if (pref != null) score -= Math.abs(d - pref) / (lofted ? 28 : 20);
+      else score -= d / (lofted ? 60 : 30);
+      if (!lofted && d > 45) score -= (d - 45) / 10;
+      if (kind === 'through') {
+        // through balls favour the runner: ahead of the ball and moving forward
+        score += clamp(((m.pos.x - p.pos.x) * p.team.side) / 40, -0.5, 0.6);
+        score += clamp((m.vel.x * p.team.side) / 12, -0.2, 0.4);
+      }
+      score -= laneBlock(p.pos, m.pos, p.team.opponent) * (lofted ? 0.15 : 0.6);
+      if (m.isGK) score -= 1.5;
+      if (opts.prev && m === opts.prev) score += 0.3;
+      if (score > bestScore) { bestScore = score; best = m; }
+    }
+    return best;
+  };
+  return pick(1.15) || pick(1.75);
 }
 
 export function laneBlock(from, to, team) {
@@ -104,6 +123,34 @@ function leadTarget(m, speedGuess, from) {
   return new Vector3(m.pos.x + m.vel.x * t * 0.85, 0, m.pos.z + m.vel.z * t * 0.85);
 }
 
+const rollDecel = () => BALL.rollDecel * SURFACE.roll + 0.35;
+
+// Time for a ground ball kicked at v0 to roll `dist` metres (Infinity if it stops short).
+function rollTime(v0, dist) {
+  const a = rollDecel();
+  const disc = v0 * v0 - 2 * a * dist;
+  if (disc < 0) return Infinity;
+  return (v0 - Math.sqrt(disc)) / a;
+}
+
+// Ground pass pace: the held power sets how hard it is struck (from a firm side-foot to a
+// fizzing driven pass), never so soft that it fails to reach the target.
+function assistedPassSpeed(dist, power, type) {
+  const arrive = type === 'through' ? 5 + power * 9 : 6.5 + Math.pow(power, 1.1) * 13;
+  return clamp(groundPassSpeed(dist, arrive), 8, 34);
+}
+
+// Where to play the ball so a moving receiver meets it, given how the ball is struck.
+function leadReceiver(m, from, speedFor, k = 0.9) {
+  let target = new Vector3(m.pos.x, 0, m.pos.z);
+  for (let i = 0; i < 3; i++) {
+    const D = Math.hypot(target.x - from.x, target.z - from.z);
+    const t = Math.min(speedFor.time(D), 3);
+    target.set(m.pos.x + m.vel.x * t * k, 0, m.pos.z + m.vel.z * t * k);
+  }
+  return target;
+}
+
 // Velocity for a driven ball to pass through `target` at height ty with horizontal speed S
 function drivenVelocity(from, target, S) {
   const dx = target.x - from.x, dz = target.z - from.z;
@@ -141,6 +188,43 @@ function finishKick(p, match, vel, spin, type, extra = {}) {
   return true;
 }
 
+// Where an assisted ground pass to `receiver` is played, and (for through balls) how hard.
+function groundPassTarget(p, type, receiver, power, dir, from) {
+  if (type === 'through') {
+    // into the space ahead of the runner: their run, the attacking direction and the stick
+    const rs = Math.hypot(receiver.vel.x, receiver.vel.z);
+    let vx = p.team.side * 1.2 + (rs > 1 ? receiver.vel.x / rs : 0) * 0.8;
+    let vz = (rs > 1 ? receiver.vel.z / rs : 0) * 0.8;
+    if (dir) { const al = Math.hypot(dir.x, dir.z) || 1; vx += (dir.x / al) * 0.6; vz += (dir.z / al) * 0.6; }
+    const vl = Math.hypot(vx, vz) || 1;
+    const lead = 5 + power * 13;
+    const target = new Vector3(receiver.pos.x + (vx / vl) * lead, 0, receiver.pos.z + (vz / vl) * lead);
+    clampToPitch(target, 1.5);
+    // weighted into the space: it slows as it reaches the spot so the runner can collect it
+    const D = Math.hypot(target.x - from.x, target.z - from.z);
+    return { target, speed: groundPassSpeed(D, 3 + power * 5) };
+  }
+  const sp = (D) => (type === 'gkThrow' ? Math.min(18, assistedPassSpeed(D, power, type)) : assistedPassSpeed(D, power, type));
+  return { target: leadReceiver(receiver, from, { time: (D) => rollTime(sp(D), D) }), speed: null };
+}
+
+// Lofted pass: lead the receiver by the ball's hang time (~1-2.5 s).
+function lobPassTarget(receiver, from) {
+  return leadReceiver(receiver, from, { time: (D) => {
+    const ang = D < 18 ? 42 : D < 35 ? 33 : 27;
+    const S = solveLobSpeed(D, ang, 7, BALL.radius);
+    return (2 * S * Math.sin((ang * Math.PI) / 180)) / BALL.gravity;
+  } }, 0.8);
+}
+
+// For the on-screen pass indicator: where an assisted pass/through/lob would be played now.
+export function previewPassTarget(p, type, receiver, power, dir, match) {
+  if (!receiver) return null;
+  const from = match.ball.pos;
+  const t = type === 'lob' ? lobPassTarget(receiver, from) : groundPassTarget(p, type, receiver, power, dir, from).target;
+  return clampToPitch(t, 0.5);
+}
+
 // ---------------------------------------------------------------------------
 // Ball actions
 // ---------------------------------------------------------------------------
@@ -166,29 +250,22 @@ export function executeBallAction(p, a, match) {
 
   if (type === 'pass' || type === 'through' || type === 'gkThrow') {
     let target, receiver = a.receiver || null;
+    let speed = null;
     if (a.target) target = a.target.clone();
     else {
-      receiver = receiver || pickReceiver(p, a.dir, match, type);
-      if (receiver) {
-        if (type === 'through') {
-          const runX = p.team.side;
-          const vx = receiver.vel.x * 0.6 + runX * 4, vz = receiver.vel.z * 0.6;
-          const vl = Math.hypot(vx, vz) || 1;
-          const lead = 4 + power * 12;
-          target = new Vector3(receiver.pos.x + (vx / vl) * lead, 0, receiver.pos.z + (vz / vl) * lead);
-        } else target = leadTarget(receiver, 13, from);
-      } else {
-        // no receiver: pass into space in the aimed direction
+      receiver = receiver || pickReceiver(p, a.dir, match, type, { power });
+      if (receiver) ({ target, speed } = groundPassTarget(p, type, receiver, power, a.dir, from));
+      else {
+        // no receiver: pass into space in the aimed direction, as far as the power says
         let dx = a.dir?.x || Math.cos(p.facing), dz = a.dir?.z || Math.sin(p.facing);
         const l = Math.hypot(dx, dz) || 1;
-        const dist = 8 + power * 22;
+        const dist = 8 + power * 32;
         target = new Vector3(from.x + (dx / l) * dist, 0, from.z + (dz / l) * dist);
       }
     }
     clampToPitch(target, 0.5);
     const dist = Math.hypot(target.x - from.x, target.z - from.z);
-    const arrive = type === 'through' ? 2.5 + power * 2 : 4 + power * 5;
-    let speed = groundPassSpeed(dist, arrive);
+    if (speed == null) speed = a.target && a.manual ? groundPassSpeed(dist, 4 + power * 10) : assistedPassSpeed(dist, power, type);
     if (type === 'gkThrow') speed = Math.min(speed, 18);
     speed *= 1 + randn() * statErr(s.passing, 0.06) * errScale;
     const errDeg = randn() * (statErr(s.passing, 5) * (1 + press * 1.2) + (volley ? 4 : 0) + dist * 0.03) * errScale;
@@ -209,7 +286,7 @@ export function executeBallAction(p, a, match) {
       const dist = type === 'gkKick' ? 45 + power * 15 : 30 + power * 18;
       target = new Vector3(from.x + (dx / l) * dist, 0, from.z + (dz / l) * dist);
     } else {
-      receiver = receiver || pickReceiver(p, a.dir, match, 'lob');
+      receiver = receiver || pickReceiver(p, a.dir, match, 'lob', { power });
       const inCrossZone = Math.abs(from.z) > PITCH.boxHalfW - 2 && (from.x * p.team.side) > PITCH.halfL - 30;
       if (inCrossZone && (!receiver || (receiver.pos.x * p.team.side) > PITCH.halfL - 20)) {
         // cross into the box: aim for the most advanced attacker in the box, or the penalty spot area
@@ -222,11 +299,11 @@ export function executeBallAction(p, a, match) {
         }
         receiver = best;
         target = best ? leadTarget(best, 16, from) : new Vector3(p.team.side * (PITCH.halfL - 9), 0, -Math.sign(from.z) * 2);
-      } else if (receiver) target = leadTarget(receiver, 15, from);
+      } else if (receiver) target = lobPassTarget(receiver, from);
       else {
         const dx = a.dir?.x || Math.cos(p.facing), dz = a.dir?.z || Math.sin(p.facing);
         const l = Math.hypot(dx, dz) || 1;
-        const dist = 15 + power * 30;
+        const dist = 15 + power * 40;
         target = new Vector3(from.x + (dx / l) * dist, 0, from.z + (dz / l) * dist);
       }
     }
