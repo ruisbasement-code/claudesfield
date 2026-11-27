@@ -73,8 +73,8 @@ Methods (used by rules/ai/ui):
 ### Per-frame order inside `match.update(dt)`
 
 1. `rules.preUpdate(dt)` – clock, phase timers
-2. human controller writes `intent` for the controlled player
-3. `teamAI.update(dt)` for both teams – writes `intent` for every other non-locked player (including the human team's teammates and both goalkeepers unless human-controlled)
+2. `teamAI.update(dt)` for both teams – writes `intent` for every non-locked player except `team.controlled` on a human team
+3. `HumanController.update(dt)` (src/input/humanController.js) writes `intent` for the human's active player (the keeper when facing a penalty); runs after the AI so it always wins
 4. players integrate (movement, stamina, consume `intent.action` → kicks/tackles)
 5. ball physics (posts, crossbar, nets, ground)
 6. ball pickup / possession resolution → `touch`, `possession` events
@@ -157,6 +157,10 @@ When the ball goes out / a goal is scored the core sets `phase='stopped'` and em
 * Settings module (menus thread): `src/ui/settings.js` → `getSettings()`, `onSettingsChange(fn)`, persisted in `localStorage`.
 * Control actions: `moveUp, moveDown, moveLeft, moveRight, sprint, pass, through, shoot, lob, switch, finesse, chip, tackle, slide, skill, pause`. Keyboard maps use `KeyboardEvent.code` (e.g. `'KeyW'`, `'ShiftLeft'`). `tackle` defaults to the same key as `pass` and `slide` to `shoot` (context-sensitive, like console football).
 * `src/input/input.js` (core) reads the bindings from settings and exposes `input.isDown(action)`, `input.pressed(action)`, `input.released(action)`, `input.moveVector()`.
+
+Extra knobs on the sim for AI/difficulty: `action.error` (kick error multiplier, 1 = stat default), `player.tackleBonus`, `player.saveBonus` (additive probabilities), `player.maxSpeed(sprint)`. Weather `'rain'` makes the ball skid further and bounce lower (`setSurface` in ball.js).
+
+Dev tools: `node tools/headless-sim.mjs [halfMinutes] [difficulty]`, `node tools/human-test.mjs` (scripted controls), `node tools/dev/shot-stats.mjs`, `node tools/dev/pass-stats.mjs`.
 
 ## Rendering (`src/render/`)
 
