@@ -1,5 +1,6 @@
 // Team AI: shape, roles (chaser / presser / cover / markers / supporters / runners),
 // on-ball decisions, set-piece takers and the goalkeeper.
+import { Vector3 } from 'three';
 import { FORMATIONS, ROLE_TRAITS } from './formations.js';
 import { getProfile, teammateProfile } from './difficulty.js';
 import {
@@ -186,7 +187,9 @@ export class TeamAI {
     // ---- intercept table for loose ball ----
     const intercepts = new Map();
     let ourBest = null, ourBestP = null, oppBest = null;
-    const justKicked = this.lastKick && this.time - this.lastKick.time < 0.35 ? this.lastKick.player : null;
+    const lk0 = ball.lastKick;
+    const knocked = lk0 && lk0.type === 'knock';
+    const justKicked = !knocked && this.lastKick && this.time - this.lastKick.time < 0.35 ? this.lastKick.player : null;
     if (!carrier) {
       for (const p of team.players) {
         if (p.sentOff || p === justKicked) continue;
@@ -206,7 +209,7 @@ export class TeamAI {
       }
       // the intended receiver of our pass goes to meet it (unless an opponent clearly gets there first)
       const lk = ball.lastKick;
-      const rcv = lk && lk.receiver;
+      const rcv = lk && (lk.type === 'knock' ? lk.player : lk.receiver);
       if (rcv && rcv.team === team && !rcv.sentOff && !rcv.isGK && lk.player?.team === team && intercepts.get(rcv)) {
         const ip = intercepts.get(rcv);
         if (!oppBest || ip.t < oppBest.t + 0.3) { ourBest = ip; ourBestP = rcv; }
@@ -493,8 +496,10 @@ export class TeamAI {
         if (choice.kind === 'shoot') it.action = buildShot(this, p, choice);
         else if (choice.kind === 'clear') it.action = buildClear(this, p, choice);
         else if (choice.kind !== 'dribble') it.action = buildPass(this, p, choice);
-        if (choice.kind === 'dribble') br.dribbleAngle = choice.angle;
-        else br.dribbleAngle = null;
+        if (choice.kind === 'dribble') {
+          br.dribbleAngle = choice.angle;
+          this.maybeSkill(p, choice, press);
+        } else br.dribbleAngle = null;
       }
     }
     // carry the ball along the dribble heading (also while a kick winds up)
@@ -504,6 +509,36 @@ export class TeamAI {
     it.move.z = Math.sin(a);
     it.sprint = free > 5 && (p.stamina ?? 1) > 0.3 && br.workRate < 0.3 + this.prof.sprintUse;
     it.face = null;
+  }
+
+  // Simple skill moves, mirroring the human controller: knock-on into open space for quick
+  // players, drag-back to escape a defender squaring up in front.
+  maybeSkill(p, choice, press) {
+    const m = this.match, ball = m.ball, prof = this.prof;
+    if (ball.owner !== p || typeof ball.kick !== 'function') return;
+    const pace = stat(p, 'pace'), dribbling = stat(p, 'dribbling');
+    const a = choice.angle;
+    if (choice.free > 9 && pace > 74 && Math.random() < prof.dribbleBravery * 0.35) {
+      const v = new Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(7 + (pace / 99) * 3);
+      ball.kick(v, null, p, 'knock');
+      ball.lastKick = { player: p, type: 'knock', time: m.time };
+      p.touchCooldown = 0.25;
+      p.kickAnim = 0.6;
+      m.emitTouch?.(p, 'kick');
+      this.brain(p).knockAt = this.time;
+      return;
+    }
+    if (press < 1.6 && dribbling > 72 && Math.random() < prof.dribbleBravery * 0.12) {
+      // only when the nearest defender is in front of us
+      const o = nearestOf(this.team.opponent.players.filter((x) => !x.sentOff), p.pos).p;
+      if (!o) return;
+      const fx = Math.cos(p.facing), fz = Math.sin(p.facing);
+      if ((o.pos.x - p.pos.x) * fx + (o.pos.z - p.pos.z) * fz <= 0) return;
+      p.facing += Math.PI;
+      p.vel.multiplyScalar(-0.3);
+      ball.pos.set(p.pos.x - fx * 0.5, ball.pos.y, p.pos.z - fz * 0.5);
+      this.brain(p).dribbleAngle = p.facing;
+    }
   }
 
   // ---------------------------------------------------------------------------------------
