@@ -65,7 +65,11 @@ export class CameraRig {
     } else if (this.override === 'replay' && ctx.replayBall) {
       const b = ctx.replayBall;
       const side = Math.sign(b.x) || 1;
-      desiredPos.set(b.x - side * 9, 2.6, b.z + 12);
+      // stay inside the bowl: in front of the ad boards on both axes
+      let cz = b.z + 12;
+      if (cz > PITCH.halfW + 3) cz = b.z - 12 < -PITCH.halfW - 3 ? PITCH.halfW + 3 : b.z - 12;
+      const cx = clamp(b.x - side * 9, -PITCH.halfL - 3, PITCH.halfL + 3);
+      desiredPos.set(cx, 2.6, cz);
       desiredLook.set(b.x, 1, b.z);
       fov = 34;
     } else if (this.override === 'penalty' && ctx.setPiece) {
