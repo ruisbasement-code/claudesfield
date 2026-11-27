@@ -291,7 +291,7 @@ export class TeamAI {
         this.maybeFirstTime(p, it);
         continue;
       }
-      if (p === presser) { this.press(p, it, carrier); continue; }
+      if (p === presser) { this.press(p, it, carrier, dt); continue; }
       if (p === cover) { this.coverPress(p, it, carrier); continue; }
       if (marks.has(p)) { this.mark(p, it, marks.get(p)); continue; }
       if (weHave) { this.attackShape(p, it, carrier, supporters.has(p)); continue; }
@@ -396,7 +396,7 @@ export class TeamAI {
     this.moveTo(p, it, base, { urgency: 0.85, sprint: dist2(p.pos, base) > 10 });
   }
 
-  press(p, it, carrier) {
+  press(p, it, carrier, dt = 1 / 60) {
     const team = this.team, prof = this.prof, br = this.brain(p);
     const goal = team.ownGoal;
     const dc = dist2(p.pos, carrier.pos);
@@ -410,9 +410,14 @@ export class TeamAI {
     // jockey goal-side of the carrier
     const gx = goal.x - carrier.pos.x, gz = goal.z - carrier.pos.z;
     const gl = len2(gx, gz) || 1;
-    const standOff = dc > 4 ? 1.2 : 1.6 - prof.pressIntensity * 0.6;
+    // jockey a couple of metres off, then step in to tackle when the moment looks right
+    const lunging = br.lungeUntil > this.time;
+    if (!lunging && this.time >= br.tackleCooldown && dc < 3.2 && Math.random() < dt * (0.6 + prof.pressIntensity * 1.6)) {
+      br.lungeUntil = this.time + 0.45;
+    }
+    const standOff = lunging ? 0.2 : dc > 5 ? 1.4 : 2.4 - prof.pressIntensity * 0.9;
     const T = { x: carrier.pos.x + (gx / gl) * standOff + (carrier.vel?.x || 0) * 0.25, z: carrier.pos.z + (gz / gl) * standOff + (carrier.vel?.z || 0) * 0.25 };
-    this.moveTo(p, it, T, { urgency: 1, sprint: dc > 3 && Math.random() < 0.5 + prof.pressIntensity, arrive: true });
+    this.moveTo(p, it, T, { urgency: 1, sprint: lunging || (dc > 3 && Math.random() < 0.5 + prof.pressIntensity), arrive: !lunging });
     this.faceBall(p, it);
 
     // tackle attempts on think ticks
@@ -420,7 +425,7 @@ export class TeamAI {
     const toMeX = p.pos.x - carrier.pos.x, toMeZ = p.pos.z - carrier.pos.z;
     const cvl = len2(carrier.vel?.x || 0, carrier.vel?.z || 0);
     const inFront = cvl < 1 || ((carrier.vel.x * toMeX + carrier.vel.z * toMeZ) / (cvl * (dc || 1))) > -0.2;
-    if (this.time >= br.tackleCooldown && dc < 1.5 && inFront) {
+    if (this.time >= br.tackleCooldown && dc < 1.5 && (inFront || lunging)) {
       br.tackleCooldown = this.time + 0.7 + this.prof.reactionTime * 2 + Math.random() * 0.5;
       const def = stat(p, 'defending') / 99;
       const goodTiming = Math.random() < prof.tackleSkill * (0.55 + def * 0.5);
@@ -428,6 +433,7 @@ export class TeamAI {
         // slide tackles only when beaten / chasing from the side and outside our box
         const behind = ((carrier.pos.x - p.pos.x) * (goal.x - p.pos.x)) < 0 ? false : true;
         const inBox = cRel.d < PITCH.boxDepth / PITCH.length && Math.abs(carrier.pos.z) < PITCH.boxHalfW;
+        br.lungeUntil = 0;
         if (behind && !inBox && dc > 1.2 && Math.random() < 0.3 * prof.pressIntensity) {
           it.action = { type: 'slide', dir: { x: carrier.pos.x - p.pos.x, z: carrier.pos.z - p.pos.z }, power: 1 };
         } else {

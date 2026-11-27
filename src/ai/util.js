@@ -92,12 +92,14 @@ export function laneMargin(a, b, ballSpeed, opponents, reactDelay = 0.15) {
   let worst = Infinity;
   for (const o of opponents) {
     if (o.sentOff) continue;
-    const ox = o.pos.x - a.x, oz = o.pos.z - a.z;
+    // where the opponent will be a moment from now (they are usually closing in)
+    const opx = o.pos.x + (o.vel?.x || 0) * 0.25, opz = o.pos.z + (o.vel?.z || 0) * 0.25;
+    const ox = opx - a.x, oz = opz - a.z;
     let s = ox * ux + oz * uz;
     if (s < 0) s = 0;
     if (s > L) s = L;
     const px = a.x + ux * s, pz = a.z + uz * s;
-    const dPerp = Math.max(0, len2(o.pos.x - px, o.pos.z - pz) - 0.9);
+    const dPerp = Math.max(0, len2(opx - px, opz - pz) - 1.3);
     // slow balls decelerate: crude correction
     const tBall = s / Math.max(4, ballSpeed * (1 - 0.15 * (s / L)));
     const tOpp = reactDelay + dPerp / topSpeed(o, true);
