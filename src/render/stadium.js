@@ -81,7 +81,7 @@ export function buildStadium(homeColors = ['#0f7c80'], awayColors = ['#a3192f'])
   };
   const concrete = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 1 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.8, side: THREE.DoubleSide });
-  const mkStand = (len, depth, rise, cols, seed) => {
+  const mkStand = (len, depth, rise, cols, seed, roofed = true) => {
     const s = new THREE.Group();
     const steps = 2;
     for (let i = 0; i < steps; i++) {
@@ -104,13 +104,14 @@ export function buildStadium(homeColors = ['#0f7c80'], awayColors = ['#a3192f'])
     const roof = new THREE.Mesh(new THREE.PlaneGeometry(len, depth * 0.8), roofMat);
     roof.rotation.x = -Math.PI / 2 + 0.12;
     roof.position.set(0, rise + 9, depth * 0.6);
-    s.add(roof);
+    if (roofed) s.add(roof);
     return s;
   };
   const crowdCols = [...homeColors, ...homeColors, ...awayColors];
   const sideLen = PITCH.length + 14;
   const endLen = PITCH.width + 14;
-  const near = mkStand(sideLen, 26, 18, crowdCols, 11);
+  // no roof on the near stand: the broadcast camera sits above it
+  const near = mkStand(sideLen, 26, 18, crowdCols, 11, false);
   near.position.set(0, 0, W + 7);
   group.add(near);
   const far = mkStand(sideLen, 30, 24, crowdCols, 23);

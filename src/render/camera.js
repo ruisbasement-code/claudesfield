@@ -4,8 +4,8 @@ import { PITCH, clamp, lerp } from '../core/constants.js';
 // Broadcast-style camera rig. The main stand camera sits on the +z touchline looking towards -z,
 // so +x is screen-right and +z is screen-down (the HUD radar relies on this).
 const MODES = {
-  broadcast: { fov: 32, height: 19, dist: 46, follow: 0.85, lookZ: 0.45, lookAhead: 4 },
-  tele: { fov: 26, height: 14, dist: 38, follow: 0.92, lookZ: 0.55, lookAhead: 3 },
+  broadcast: { fov: 40, height: 29, dist: 58, follow: 0.85, lookZ: 0.55, lookAhead: 4, lookOff: 6 },
+  tele: { fov: 32, height: 21, dist: 48, follow: 0.92, lookZ: 0.6, lookAhead: 3, lookOff: 4 },
   wide: { fov: 40, height: 34, dist: 56, follow: 0.6, lookZ: 0.3, lookAhead: 2 },
 };
 
@@ -99,7 +99,7 @@ export class CameraRig {
       // closer to the near touchline -> pull back a bit less
       const zf = clamp(focus.z, -PITCH.halfW, PITCH.halfW);
       desiredPos.set(fx, m.height * hF, m.dist * zoomF + PITCH.halfW * 0.05 + zf * 0.1);
-      desiredLook.set(clamp(focus.x, -PITCH.halfL, PITCH.halfL) * (0.95), 0, zf * m.lookZ - m.lookAhead * 0.3);
+      desiredLook.set(clamp(focus.x, -PITCH.halfL, PITCH.halfL) * (0.95), 0, zf * m.lookZ - m.lookAhead * 0.3 + (m.lookOff || 0));
       fov = m.fov;
     }
     if (ball && ball.y > 4 && !this.override) desiredLook.y = Math.min(ball.y * 0.25, 4);

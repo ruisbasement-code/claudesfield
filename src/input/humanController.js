@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { PITCH, GOAL, clamp } from '../core/constants.js';
-import { pickReceiver } from '../sim/actions.js';
+import { pickReceiver, previewPassTarget } from '../sim/actions.js';
 
 const CHARGE_TIME = 0.9; // seconds for a full power bar
 const BALL_ACTIONS = ['shoot', 'pass', 'through', 'lob'];
@@ -18,6 +18,7 @@ export class HumanController {
     this.lastMove = { x: team.side, z: 0 };
     this.aimPoint = null; // for HUD/renderer (penalties / free kicks)
     this.previewReceiver = null;
+    this.previewTarget = null;
     this.assist = { pass: 'assisted', shot: 'assisted' };
     this.autoSwitch = 'assisted';
     this.lastAutoSwitch = 0;
@@ -206,6 +207,7 @@ export class HumanController {
       if (input.pressed('switch')) m.switchPlayer(this.team);
       else if (flick) this.switchToward(flick);
       if (this.team.controlled !== p) return;
+      this.receiveAssist(p, mv, it);
     }
 
     // shield / protect the ball (LT)
@@ -229,7 +231,14 @@ export class HumanController {
       const a = this.charging.action;
       const release = input.released(a) || !input.isDown(a) || this.charging.t > CHARGE_TIME * 1.6;
       // through/pass previews
-      if (a !== 'shoot') this.previewReceiver = pickReceiver(p, mv.mag > 0.2 ? mv : this.lastMove, m, a === 'lob' ? 'lob' : a);
+      // assisted passing: the stick picks the team-mate, the bar biases near/far; the ring shows who
+      const aimDir = mv.mag > 0.2 ? mv : this.lastMove;
+      if (a !== 'shoot') {
+        this.previewReceiver = pickReceiver(p, aimDir, m, a === 'lob' ? 'lob' : a, { power: this.power, prev: this.previewReceiver });
+        const assisted = (this.assist?.pass || 'assisted') !== 'manual' && !(p.isGK && p.state === 'hold');
+        this.previewTarget = assisted ? previewPassTarget(p, a === 'lob' ? 'lob' : a, this.previewReceiver, this.power, aimDir, m) : null;
+        this.previewKind = a;
+      }
       if (release) {
         const dir = mv.mag > 0.2 ? { x: mv.x, z: mv.z } : null;
         const action = {
@@ -242,12 +251,16 @@ export class HumanController {
         if (this.aimPoint && a === 'shoot') action.target = this.aimPoint.clone();
         // assistance levels from settings: 'assisted' | 'semi' | 'manual'
         const passAssist = this.assist?.pass || 'assisted';
+        if (a !== 'shoot' && passAssist !== 'manual' && this.previewReceiver && !(p.isGK && p.state === 'hold' && a !== 'pass' && a !== 'through')) {
+          action.receiver = this.previewReceiver;
+        }
         if (a !== 'shoot' && passAssist !== 'assisted') {
           const d = dir || this.lastMove;
           if (passAssist === 'manual' && d) {
             const l = Math.hypot(d.x, d.z) || 1;
-            const dist = a === 'lob' ? 12 + this.power * 40 : a === 'through' ? 10 + this.power * 30 : 6 + this.power * 28;
+            const dist = a === 'lob' ? 12 + this.power * 45 : a === 'through' ? 10 + this.power * 35 : 6 + this.power * 36;
             action.target = new Vector3(p.pos.x + (d.x / l) * dist, 0, p.pos.z + (d.z / l) * dist);
+            action.manual = true;
           }
           action.error = passAssist === 'manual' ? 0.8 : 1.35;
         }
@@ -257,12 +270,57 @@ export class HumanController {
         // keeper holding the ball: pass = throw, lob/shoot = kick
         if (p.isGK && p.state === 'hold') action.type = a === 'pass' || a === 'through' ? 'gkThrow' : 'gkKick';
         it.action = action;
+        if (a !== 'shoot') this.lastPassDir = { ...(action.dir || this.lastMove) };
+        this.previewTarget = null;
         this.charging = null;
         this.previewReceiver = null;
         this.lastPower = this.power;
         this.power = 0;
       }
-    } else this.previewReceiver = null;
+    } else { this.previewReceiver = null; this.previewTarget = null; }
+  }
+
+  // Pass indicator for the renderer: { from, target, receiver, kind } while aiming a pass, and
+  // the struck pass's path until someone gets to it.
+  passIndicator() {
+    const m = this.match, ball = m.ball;
+    if (this.charging && this.charging.action !== 'shoot' && this.previewTarget) {
+      return { from: ball.pos, target: this.previewTarget, receiver: this.previewReceiver, kind: this.charging.action, power: this.power, live: false };
+    }
+    const lk = ball.lastKick;
+    if (!ball.owner && lk && lk.player?.team === this.team && lk.target && lk.receiver && ball.lastTouch === lk.player
+      && ['pass', 'through', 'lob', 'cross', 'gkThrow'].includes(lk.type) && m.time - lk.time < 3) {
+      return { from: ball.pos, target: lk.target, receiver: lk.receiver, kind: lk.type, power: 1, live: true };
+    }
+    return null;
+  }
+
+  // FC-style receiving: after our pass the intended receiver (now under the human's control)
+  // comes to meet the ball on his own, until the stick is pushed somewhere new.
+  receiveAssist(p, mv, it) {
+    const m = this.match, ball = m.ball;
+    const lk = ball.lastKick;
+    if (!lk || lk.receiver !== p || lk.player?.team !== this.team || m.time - lk.time > 4) return;
+    if (ball.lastTouch !== lk.player) return; // someone else has touched it since
+    const held = this.lastPassDir;
+    if (mv.mag > 0.3) {
+      const same = held && (mv.x * held.x + mv.z * held.z) / (mv.mag * (Math.hypot(held.x, held.z) || 1)) > 0.75;
+      if (!same) { this.lastPassDir = null; return; } // the player has taken over
+    }
+    const top = p.topSpeed(true);
+    let tgt = null;
+    for (const s of ball.path(3, 0.1)) {
+      if (s.pos.y > 2.2) continue;
+      const d = Math.hypot(s.pos.x - p.pos.x, s.pos.z - p.pos.z);
+      if (d / top + 0.15 <= s.t) { tgt = s.pos; break; }
+    }
+    if (!tgt) { const end = ball.predictLanding(); tgt = end?.pos || ball.pos; }
+    const dx = tgt.x - p.pos.x, dz = tgt.z - p.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.35) { it.move.x = 0; it.move.z = 0; }
+    else { const k = Math.min(1, d / 2.5); it.move.x = (dx / d) * k; it.move.z = (dz / d) * k; }
+    it.sprint = d > 4;
+    it.face = Math.atan2(ball.pos.z - p.pos.z, ball.pos.x - p.pos.x);
   }
 
   // Manual switch: pick the team-mate best lined up with the right-stick flick.

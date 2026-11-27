@@ -234,5 +234,47 @@ export class PlayerModel {
       AL.elbow.rotation.z = -0.6; AR.elbow.rotation.z = -0.6;
       this.pelvis.position.y = 0.88;
     } else this.pelvis.position.y = 0.92;
+
+    // lean into turns at speed (inside of the turn is local +z when facing increases)
+    let turnRate = 0;
+    if (this._prevFacing != null && dt > 0) {
+      let df = p.facing - this._prevFacing;
+      while (df > Math.PI) df -= Math.PI * 2;
+      while (df < -Math.PI) df += Math.PI * 2;
+      turnRate = df / dt;
+    }
+    this._prevFacing = p.facing;
+    if (p.state === 'run' && !(p.kickAnim > 0)) {
+      this.body.rotation.x = Math.max(-0.2, Math.min(0.2, turnRate * sp * 0.01));
+    }
+    this.blendPose(dt, p);
+  }
+
+  // Ease every joint towards this frame's pose so state changes (kick, tackle, slide, getting up,
+  // starting and stopping) flow into each other instead of snapping.
+  blendPose(dt, p) {
+    if (!this._joints) {
+      this._joints = [this.body, this.spine, ...this.legs.flatMap((l) => [l.hip, l.knee]), ...this.arms.flatMap((a) => [a.sh, a.elbow])];
+      this._pose = this._joints.map((j) => j.rotation.clone());
+      this._bodyY = this.body.position.y;
+      this._lastState = p.state;
+      return;
+    }
+    if (p.state !== this._lastState) { this._lastState = p.state; this._blendT = 0.22; }
+    if (!(dt > 0)) {
+      this._joints.forEach((j, i) => j.rotation.copy(this._pose[i]));
+      this.body.position.y = this._bodyY;
+      return;
+    }
+    const transition = (this._blendT || 0) > 0;
+    if (transition) this._blendT -= dt;
+    const a = 1 - Math.exp(-(transition ? 14 : 32) * dt);
+    this._joints.forEach((j, i) => {
+      const q = this._pose[i];
+      q.x += (j.rotation.x - q.x) * a; q.y += (j.rotation.y - q.y) * a; q.z += (j.rotation.z - q.z) * a;
+      j.rotation.copy(q);
+    });
+    this._bodyY += (this.body.position.y - this._bodyY) * a;
+    this.body.position.y = this._bodyY;
   }
 }
