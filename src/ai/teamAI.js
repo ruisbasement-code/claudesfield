@@ -30,6 +30,8 @@ export class TeamAI {
     this.keeperBrain = null;
     this.lastKick = null;
     this.setPieceState = null;
+    this.mentality = 0;        // -1 park the bus .. 0 balanced .. +1 all-out attack
+    this.userMentality = null; // set by UI/tactics; null = AI decides from game state
     this.unsub = [];
     const ev = match.events;
     if (ev && ev.on) {
@@ -42,6 +44,23 @@ export class TeamAI {
   setDifficulty(id) {
     this.difficultyId = id;
     this.prof = this.team.human ? teammateProfile(id) : getProfile(id);
+  }
+
+  // Tactics hook for the UI: 'defensive' | 'balanced' | 'attacking' | null (auto).
+  setMentality(m) {
+    this.userMentality = m == null ? null : ({ defensive: -0.7, balanced: 0, attacking: 0.7 }[m] ?? 0);
+  }
+
+  // Game-state awareness: chase the game when losing late, protect a lead.
+  updateMentality() {
+    if (this.userMentality != null) { this.mentality = this.userMentality; return; }
+    if (this.team.human) { this.mentality = 0; return; }
+    const c = this.match.clock;
+    const mins = c ? (c.seconds || 0) / 60 : 0;
+    const diff = (this.team.score || 0) - (this.team.opponent.score || 0);
+    const late = clamp((mins - 60) / 30, 0, 1);
+    const want = clamp(-diff * 0.5 * late * this.prof.decisionQuality, -0.8, 0.9);
+    this.mentality += (want - this.mentality) * 0.002;
   }
 
   dispose() { for (const u of this.unsub) if (typeof u === 'function') u(); }
@@ -144,6 +163,7 @@ export class TeamAI {
     const opp = team.opponent;
     if (this.frame % 2 === 0 || this.samples.length === 0) sampleBall(ball, 3, 1 / 30, this.samples);
     this.computeLines();
+    this.updateMentality();
 
     const carrier = ball.owner;
     const weHave = carrier && carrier.team === team;
@@ -269,7 +289,7 @@ export class TeamAI {
     const trap = this.prof.offsideTrap;
     const oppDs = team.opponent.players.filter((o) => !o.sentOff && !o.isGK).map((o) => toRel(team, o.pos).d);
     const deepestAttacker = oppDs.length ? Math.min(...oppDs) : 0.5;
-    let line = clamp(ballD - 0.28 + trap * 0.06, 0.1, 0.52);
+    let line = clamp(ballD - 0.28 + trap * 0.06 + this.mentality * 0.04, 0.1, 0.52);
     // without a trap, never let the deepest attacker get goal-side
     if (trap < 0.5) line = Math.min(line, deepestAttacker - 0.01 * (1 - trap));
     // never deeper than the six-yard box edge
@@ -282,7 +302,7 @@ export class TeamAI {
     const tr = ROLE_TRAITS[slot.role] || ROLE_TRAITS.CM;
     const b = toRel(team, bp);
     const shiftD = (b.d - 0.5) * tr.followD;
-    let d = slot.d + shiftD + (attacking ? tr.attackPush : -tr.defendDrop);
+    let d = slot.d + shiftD + (attacking ? tr.attackPush : -tr.defendDrop) + this.mentality * 0.05;
     let w = slot.w * (attacking ? 1.05 : 0.78) + b.w * tr.followW * (attacking ? 0.5 : 0.8);
     // back line flat when defending
     if (!attacking && (slot.role === 'CB' || slot.role === 'FB')) d = this.defLine + (slot.role === 'FB' ? 0.01 : 0);
@@ -354,7 +374,7 @@ export class TeamAI {
     const dc = dist2(p.pos, carrier.pos);
     const cRel = toRel(team, carrier.pos);
     // pressing height: low-intensity teams only engage in their own half
-    const engage = cRel.d < 0.45 + prof.pressIntensity * 0.5;
+    const engage = cRel.d < 0.45 + prof.pressIntensity * 0.5 + this.mentality * 0.15;
     if (!engage) {
       const T = this.shapeTarget(p, this.perceivedBall(), false);
       return this.moveTo(p, it, T, { urgency: 0.8 });
