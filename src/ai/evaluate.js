@@ -38,11 +38,13 @@ export function blockFactor(goal, x, z, opponents, keeper) {
   return clamp(f, 0.05, 1);
 }
 
+export let POS_GRADIENT = 0.12;
+export function setPosGradient(v) { POS_GRADIENT = v; }
 // Threat of simply *having the ball* at a location (rel d 0..1 toward attack goal).
 export function positionValue(team, x, z) {
   const g = team.attackGoal;
   const dRel = (x * team.side + PITCH.halfL) / PITCH.length;
-  return 0.015 + 0.45 * xgAt(g, x, z) + 0.05 * dRel * dRel;
+  return 0.015 + 0.45 * xgAt(g, x, z) + POS_GRADIENT * dRel * dRel;
 }
 
 // Cost of losing the ball at a location (higher near own goal).

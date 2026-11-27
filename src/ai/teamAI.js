@@ -135,7 +135,12 @@ export class TeamAI {
     if (this.ballHist.length > BALL_HISTORY) this.ballHist.shift();
 
     const gk = team.players.find((p) => p.isGK && !p.sentOff) || null;
-    if (gk !== this.keeper) { this.keeper = gk; this.keeperBrain = gk ? new KeeperBrain(this, gk) : null; }
+    if (gk !== this.keeper) {
+      this.keeper = gk;
+      this.keeperBrain = gk ? new KeeperBrain(this, gk) : null;
+      // difficulty nudges the sim's save/catch rolls for this keeper (Amateur -0.07 .. Legendary +0.05)
+      if (gk) gk.saveBonus = (this.prof.gkReflex - 0.78) * 0.25;
+    }
 
     const phase = match.phase;
     if (phase === 'setpiece' || phase === 'shootout') return this.updateSetPiece(dt);
@@ -290,7 +295,10 @@ export class TeamAI {
     const ballD = toRel(team, this.perceivedBall()).d;
     // our back line: deeper when the ball is deep, holds higher with a better offside trap
     const trap = this.prof.offsideTrap;
-    const oppDs = team.opponent.players.filter((o) => !o.sentOff && !o.isGK).map((o) => toRel(team, o.pos).d);
+    // defenders read runners late: use where attackers were ~reactionTime ago
+    const lag = this.prof.reactionTime * 1.5;
+    const oppDs = team.opponent.players.filter((o) => !o.sentOff && !o.isGK)
+      .map((o) => toRel(team, { x: o.pos.x - (o.vel?.x || 0) * lag, z: o.pos.z }).d);
     const deepestAttacker = oppDs.length ? Math.min(...oppDs) : 0.5;
     let line = clamp(ballD - 0.28 + trap * 0.06 + this.mentality * 0.04, 0.1, 0.52);
     // without a trap, never let the deepest attacker get goal-side
@@ -343,7 +351,9 @@ export class TeamAI {
       if (pRel.d > cRel.d - 0.05 && Math.random() < 0.25 + prof.riskTaking * 0.4) {
         // diagonal run along the offside line, then the through-ball logic picks it up
         const w = clamp(pRel.w + (Math.random() - 0.5) * 0.5, -0.8, 0.8);
-        const d = Math.min(0.94, this.offsideLine - 0.005);
+        // weaker sides mistime runs and drift offside now and then
+        const early = Math.random() < (1 - prof.positioning) * 0.9 ? 0.015 + Math.random() * 0.03 : 0;
+        const d = Math.min(0.94, this.offsideLine - 0.005 + early);
         br.runTarget = toWorld(team, d, w);
         br.runUntil = this.time + 1.6;
       }
@@ -391,8 +401,12 @@ export class TeamAI {
     this.faceBall(p, it);
 
     // tackle attempts on think ticks
-    if (this.time >= br.tackleCooldown && dc < 1.9) {
-      br.tackleCooldown = this.time + 0.35 + this.prof.reactionTime;
+    // only commit when close, roughly in front of the carrier (not from behind), and settled
+    const toMeX = p.pos.x - carrier.pos.x, toMeZ = p.pos.z - carrier.pos.z;
+    const cvl = len2(carrier.vel?.x || 0, carrier.vel?.z || 0);
+    const inFront = cvl < 1 || ((carrier.vel.x * toMeX + carrier.vel.z * toMeZ) / (cvl * (dc || 1))) > -0.2;
+    if (this.time >= br.tackleCooldown && dc < 1.5 && inFront) {
+      br.tackleCooldown = this.time + 0.7 + this.prof.reactionTime * 2 + Math.random() * 0.5;
       const def = stat(p, 'defending') / 99;
       const goodTiming = Math.random() < prof.tackleSkill * (0.55 + def * 0.5);
       if (goodTiming) {
@@ -462,7 +476,7 @@ export class TeamAI {
       br.plan = choice;
       // think faster when pressed
       const base = Math.max(0.1, this.prof.reactionTime * 0.8);
-      br.nextThink = this.time + (press < 2.5 ? base * 0.6 : base) + Math.random() * 0.1;
+      br.nextThink = this.time + (press < 2.5 ? base * 0.6 : base + 0.25) + Math.random() * 0.15;
       if (choice) {
         if (choice.kind === 'shoot') it.action = buildShot(this, p, choice);
         else if (choice.kind === 'clear') it.action = buildClear(this, p, choice);

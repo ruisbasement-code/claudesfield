@@ -8,6 +8,8 @@ import {
 import { xgAt, blockFactor, positionValue, turnoverCost, goalAngle } from './evaluate.js';
 
 const sig = (x) => 1 / (1 + Math.exp(-x));
+export const TUNE = { passBias: 0.2, dribbleHold: 0.02, progress: 0.1, shotWeight: 1.6 };
+let PASS_BIAS = 0.2;
 
 function activeOpps(team) { return team.opponent.players.filter((o) => !o.sentOff); }
 function keeperOf(team) { return team.players.find((p) => p.isGK && !p.sentOff) || null; }
@@ -18,6 +20,7 @@ export function passSpeed(d) { return clamp(9 + d * 0.42, 10, 24); }
 export function passPower(d) { return clamp(0.18 + d / 42, 0.2, 0.95); }
 
 export function evaluateOptions(ai, p) {
+  PASS_BIAS = TUNE.passBias;
   const team = p.team, prof = ai.prof;
   const opps = activeOpps(team);
   const oppGK = keeperOf(team.opponent);
@@ -41,7 +44,7 @@ export function evaluateOptions(ai, p) {
     if (dGoal > 20) xg *= 0.6 + prof.riskTaking * 0.8;
     // pressure hurts
     if (press < 2) xg *= 0.75;
-    opts.push({ kind: 'shoot', score: xg + 0.012, dGoal });
+    opts.push({ kind: 'shoot', score: xg * TUNE.shotWeight + 0.015, dGoal });
   }
 
   // --- Passes --------------------------------------------------------------
@@ -56,23 +59,24 @@ export function evaluateOptions(ai, p) {
     const tx = q.pos.x + (q.vel?.x || 0) * lead, tz = q.pos.z + (q.vel?.z || 0) * lead;
     if (!inPitch({ x: tx, z: tz }, 0.5)) continue;
     // offside check (receiver beyond 2nd-last defender in opp half when we play it)
-    if (ai.isOffside(q)) continue;
+    // weaker passers sometimes miss that the receiver is offside
+    if (ai.isOffside(q) && Math.random() < ai.prof.positioning + 0.12) continue;
     const tgt = { x: tx, z: tz };
     const margin = laneMargin(pos, tgt, passSpeed(qd), opps, 0.12);
     const openness = clamp((nearestOf(opps, tgt).d - 1) / 6, 0.15, 1);
     const accuracy = 1 - (qd / 70) * (1.15 - passing / 99);
-    let succ = sig(margin * 4 + 0.8) * accuracy * (0.55 + 0.45 * openness);
+    let succ = sig(margin * 5 + PASS_BIAS) * accuracy * (0.55 + 0.45 * openness);
     const val = positionValue(team, tx, tz) * (0.6 + 0.4 * openness);
     let score = succ * val - (1 - succ) * turnoverCost(team, tx, tz);
     // under heavy pressure, safe passes look better
     if (press < 2.2) score += succ * 0.02;
     // slight preference for forward progress
-    score += (qRel.d - rel.d) * 0.07 * succ;
+    score += (qRel.d - rel.d) * TUNE.progress * succ;
     opts.push({ kind: 'pass', score, receiver: q, target: tgt, dist: qd });
 
     // Lob/chipped pass over a blocked lane to an open receiver
     if (qd > 14 && margin < 0.1 && openness > 0.45) {
-      const succL = (0.55 + 0.35 * (passing / 99)) * openness * (1 - qd / 90);
+      const succL = (0.3 + 0.3 * (passing / 99)) * openness * (1 - qd / 90);
       opts.push({ kind: 'lob', score: succL * val - (1 - succL) * turnoverCost(team, tx, tz) - 0.004,
         receiver: q, target: tgt, dist: qd });
     }
@@ -139,6 +143,9 @@ export function evaluateOptions(ai, p) {
     const keep = sig((free - 2.6) / 1.1 + (dribbling - 70) / 22) * (0.75 + 0.25 * prof.dribbleBravery);
     const val = positionValue(team, T.x, T.z);
     let score = keep * val - (1 - keep) * turnoverCost(team, T.x, T.z);
+    // carrying the ball forward is progress too, and keeping it has value when unpressed
+    const tRel = toRel(team, T);
+    score += (tRel.d - rel.d) * TUNE.progress * keep + TUNE.dribbleHold * keep * clamp((press - 2) / 6, 0, 1);
     // continuity: prefer the current dribble heading
     const brain = ai.brain(p);
     if (brain.dribbleAngle != null) {
