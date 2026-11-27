@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Claudesfield UI preview</title>
+  <link rel="stylesheet" href="../src/style.css" />
+  <style>#game{background:radial-gradient(ellipse at 50% 60%,#1f4a2c,#0c1a10)}</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="ui"></div>
+  <script type="module">
+    // UI harness: runs the real sim (no 3D) behind the menus so screens and HUD can be checked
+    // without the renderer. Open http://localhost:5173/tools/ui-preview.html
+    import { createUI } from '../src/ui/index.js';
+    import { Match } from '../src/sim/match.js';
+    import { SIM } from '../src/core/constants.js';
+
+    let match = null, acc = 0, last = performance.now();
+    const ui = createUI(document.getElementById('ui'), {
+      onStartMatch(cfg) { match = new Match({ ...cfg, humanSide: 'none' }); },
+      onPause() { if (match) match.paused = true; },
+      onResume() { if (match) match.paused = false; },
+      onRestart() { match = new Match({ ...ui.config, humanSide: 'none' }); },
+      onQuitToMenu() { match = null; },
+      getMatch: () => match,
+    });
+    window.__ui = ui; window.__match = () => match;
+    function frame(now) {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      if (match) {
+        acc += dt * (window.__speed || 1);
+        while (acc >= SIM.dt) { match.update(SIM.dt); acc -= SIM.dt; }
+        const cp = match.players.find((p) => p.team.index === 0 && p.hasBall?.()) || match.players[9];
+        ui.hud.update({
+          activePlayer: { name: cp.data.short || cp.data.name, number: cp.data.number, pos: cp.data.pos, stamina: cp.stamina, team: 'home', id: cp.id },
+          power: { value: (now / 1000) % 1, visible: (now / 1000) % 4 < 1 },
+        });
+        if (match.phase === 'fulltime' && ui.mode === 'match' && !match.__shown) { match.__shown = true; setTimeout(() => ui.showResult(), 1500); }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
