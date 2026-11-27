@@ -57,6 +57,8 @@ export class Match {
     const homeData = config.homeData || teamById(config.homeId || config.home || 'kestrel');
     const awayData = config.awayData || teamById(config.awayId || config.away || 'valdora');
     const kits = pickKits(homeData, awayData);
+    if (config.homeKitData) kits.home = config.homeKitData;
+    if (config.awayKitData) kits.away = config.awayKitData;
     this.teams = [new Team(this, 0, homeData, kits.home), new Team(this, 1, awayData, kits.away)];
     this.teams[0].opponent = this.teams[1];
     this.teams[1].opponent = this.teams[0];
