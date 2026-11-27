@@ -44,6 +44,7 @@ export class TeamAI {
   setDifficulty(id) {
     this.difficultyId = id;
     this.prof = this.team.human ? teammateProfile(id) : getProfile(id);
+    this.bonusesSet = false; this.keeper = null;
   }
 
   // Tactics hook for the UI: 'defensive' | 'balanced' | 'attacking' | null (auto).
@@ -141,6 +142,10 @@ export class TeamAI {
       // difficulty nudges the sim's save/catch rolls for this keeper (Amateur -0.07 .. Legendary +0.05)
       if (gk) gk.saveBonus = (this.prof.gkReflex - 0.78) * 0.25;
     }
+    if (!this.bonusesSet) {
+      this.bonusesSet = true;
+      for (const p of team.players) if (!p.isGK) p.tackleBonus = (this.prof.tackleSkill - 0.62) * 0.2;
+    }
 
     const phase = match.phase;
     if (phase === 'setpiece' || phase === 'shootout') return this.updateSetPiece(dt);
@@ -198,6 +203,13 @@ export class TeamAI {
       if (this.chaser && intercepts.get(this.chaser) && ourBest && this.chaser !== ourBestP && !this.chaser.isGK) {
         const cur = intercepts.get(this.chaser);
         if (cur.t < ourBest.t + 0.25) { ourBest = cur; ourBestP = this.chaser; }
+      }
+      // the intended receiver of our pass goes to meet it (unless an opponent clearly gets there first)
+      const lk = ball.lastKick;
+      const rcv = lk && lk.receiver;
+      if (rcv && rcv.team === team && !rcv.sentOff && !rcv.isGK && lk.player?.team === team && intercepts.get(rcv)) {
+        const ip = intercepts.get(rcv);
+        if (!oppBest || ip.t < oppBest.t + 0.3) { ourBest = ip; ourBestP = rcv; }
       }
       this.chaser = ourBestP;
     } else {
