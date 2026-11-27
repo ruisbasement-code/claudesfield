@@ -1,6 +1,6 @@
 import { h } from '../dom.js';
-import { pitchLinesSVG } from '../art.js';
 import { sfx } from '../sound.js';
+import { pitchLinesSVG } from '../art.js';
 import { TEAMS } from '../../data/teams.js';
 import { getSettings } from '../settings.js';
 

@@ -35,7 +35,8 @@ export function createHUD(ui) {
   const meter = h('div.cf-meter', {}, stamina);
   const playercard = h('div.cf-playercard', {}, h('div.pc', {}, pcNum, h('div.info', {}, h('div.nm', {}, pcName, pcPos), meter)));
   const powerFill = h('i');
-  const power = h('div.cf-power', {}, powerFill);
+  const powerLabel = h('b');
+  const power = h('div.cf-power', {}, powerFill, powerLabel);
 
   const canvas = h('canvas', { width: 560, height: 364 });
   const radar = h('div.cf-radar', {}, canvas);
@@ -302,6 +303,7 @@ export function createHUD(ui) {
     // power bar
     const pw = state.power;
     power.classList.toggle('is-visible', !!(pw && pw.visible));
+    if (pw) powerLabel.textContent = { pass: 'Pass', shoot: 'Shot', lob: 'Lob', through: 'Through ball', cross: 'Cross' }[pw.action] || '';
     if (pw) powerFill.style.setProperty('--p', `${Math.max(0, Math.min(1, pw.value || 0)) * 100}%`);
 
     // radar

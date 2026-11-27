@@ -209,6 +209,11 @@ export function createUI(mount, handlers = {}) {
     pause: ui.pause,
     resume: ui.resume,
     showResult: ui.showResult,
+    startMatch: ui.startMatch,
+    /** Call with true once the renderer draws a live stadium behind the title screen. */
+    setLiveBackground: (on) => root.classList.toggle('has-live-bg', !!on),
+    openSetup: ui.openSetup,
+    openSettings: ui.openSettings,
     toast: ui.toast,
     hud: ui.hud,
     nav,

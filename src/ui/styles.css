@@ -84,7 +84,7 @@
 .cf-glyph.is-pad.is-wide { border-radius: 4px; width: auto; padding: 0 6px; background: var(--ink); }
 
 /* ---------------------------------------------------------------- pitch backdrop */
-.cf-backdrop { position: absolute; inset: 0; overflow: hidden; background: #070908; }
+.cf-backdrop { position: absolute; inset: 0; overflow: hidden; background: transparent; }
 .cf-backdrop .cf-pitch3d {
   position: absolute; left: 50%; top: 54%;
   width: 1500px; height: 970px; margin: -485px 0 0 -750px;
@@ -100,7 +100,7 @@
   content: ''; position: absolute; inset: 0;
   background:
     radial-gradient(120% 80% at 70% 10%, rgba(255, 244, 214, .10), transparent 55%),
-    linear-gradient(90deg, rgba(7, 9, 8, .97) 0%, rgba(7, 9, 8, .86) 34%, rgba(7, 9, 8, .25) 70%, rgba(7, 9, 8, .55) 100%),
+    linear-gradient(90deg, rgba(7, 9, 8, .94) 0%, rgba(7, 9, 8, .78) 34%, rgba(7, 9, 8, .12) 68%, rgba(7, 9, 8, .4) 100%),
     linear-gradient(0deg, rgba(7, 9, 8, .9), transparent 40%);
 }
 .cf-grain {
@@ -391,7 +391,7 @@
 .cf-power::after { content: ''; position: absolute; top: -2px; bottom: -2px; left: 70%; width: 1px; background: rgba(255, 255, 255, .4); }
 
 .cf-radar {
-  position: absolute; left: 50%; bottom: 22px; width: 280px; height: 182px;
+  position: absolute; left: 50%; bottom: 18px; width: 230px; height: 150px; opacity: .92;
   transform: translateX(-50%) scale(var(--hud-scale)); transform-origin: bottom center;
   background: rgba(10, 14, 12, .62); border: 1px solid rgba(255, 255, 255, .14);
 }
@@ -454,3 +454,7 @@
   .cf-topbar { padding-top: 22px; }
   .cf-topbar .cf-h1 { font-size: 40px; }
 }
+
+/* When the renderer draws the stadium behind the menus, drop the CSS pitch. */
+.cf-root.has-live-bg .cf-pitch3d { display: none; }
+.cf-power b { position: absolute; left: 0; bottom: 16px; font: 700 12px/1 var(--cond); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
