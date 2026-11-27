@@ -105,6 +105,7 @@ export const GAMEPAD_DEFAULTS = {
 };
 
 export const DEFAULTS = Object.freeze({
+  _radarDefaultOff: true, // marks settings saved after the radar default changed to off
   audio: { master: 0.8, music: 0.5, sfx: 0.8, crowd: 0.7, commentary: true },
   graphics: {
     quality: 'high',        // 'low' | 'medium' | 'high'
@@ -134,7 +135,7 @@ export const DEFAULTS = Object.freeze({
   },
   hud: {
     scale: 1,
-    radar: 'bottom',        // 'bottom' | 'off'
+    radar: 'off',           // 'bottom' | 'off' (off by default: it blocked the view)
     indicator: 'name',      // 'name' | 'number' | 'off'
     clock: true,
     eventBanners: true,
@@ -184,7 +185,16 @@ const listeners = new Set();
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return merge(clone(DEFAULTS), JSON.parse(raw));
+    if (raw) {
+      const saved = JSON.parse(raw);
+      // One-time migration: the radar used to default to on. Turn it off for
+      // everyone once; players can switch it back on in Settings > HUD.
+      if (saved && !saved._radarDefaultOff) {
+        if (saved.hud) delete saved.hud.radar;
+        saved._radarDefaultOff = true;
+      }
+      return merge(clone(DEFAULTS), saved);
+    }
   } catch (e) { /* storage unavailable or corrupt */ }
   return clone(DEFAULTS);
 }

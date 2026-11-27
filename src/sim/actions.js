@@ -511,7 +511,7 @@ export function executeTackle(p, match) {
     }
     contact = fromBehind && Math.random() < 0.4;
   } else {
-    contact = fromBehind ? Math.random() < 0.75 : Math.random() < 0.2;
+    contact = fromBehind ? Math.random() < 0.6 : Math.random() < 0.12;
   }
   if (contact) { victim.setState('stumble'); if (ball.owner === victim) { ball.owner = null; victim.touchCooldown = 0.5; } }
   p.team.stats.tackles++;
