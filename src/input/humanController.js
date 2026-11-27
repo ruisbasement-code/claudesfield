@@ -290,7 +290,7 @@ export class HumanController {
     const lk = ball.lastKick;
     if (!ball.owner && lk && lk.player?.team === this.team && lk.target && lk.receiver && ball.lastTouch === lk.player
       && ['pass', 'through', 'lob', 'cross', 'gkThrow'].includes(lk.type) && m.time - lk.time < 3) {
-      return { from: ball.pos, target: lk.target, receiver: lk.receiver, kind: lk.type, power: 1, live: true };
+      return { from: ball.pos, target: lk.homing ? lk.receiver.pos : lk.target, receiver: lk.receiver, kind: lk.type, power: 1, live: true };
     }
     return null;
   }
@@ -306,6 +306,16 @@ export class HumanController {
     if (mv.mag > 0.3) {
       const same = held && (mv.x * held.x + mv.z * held.z) / (mv.mag * (Math.hypot(held.x, held.z) || 1)) > 0.75;
       if (!same) { this.lastPassDir = null; return; } // the player has taken over
+    }
+    if (lk.homing) {
+      // a magnet pass is coming to his feet: settle, take a step towards it and open up to it
+      const bx = ball.pos.x - p.pos.x, bz = ball.pos.z - p.pos.z;
+      const bd = Math.hypot(bx, bz) || 1;
+      const k = bd > 3 ? 0.35 : 0;
+      it.move.x = (bx / bd) * k; it.move.z = (bz / bd) * k;
+      it.sprint = false;
+      it.face = Math.atan2(bz, bx);
+      return;
     }
     const top = p.topSpeed(true);
     let tgt = null;

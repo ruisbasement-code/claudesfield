@@ -137,8 +137,34 @@ export class Match {
       }
       return;
     }
+    this.homePass(dt);
     ball.update(dt);
     if (this.phase === 'live') this.resolveTouches();
+  }
+
+  // Assisted ground passes (FC-style "magnet"): the rolling ball bends gently onto the intended
+  // receiver's feet and keeps enough pace to get there. Through balls and lofted passes don't home.
+  homePass(dt) {
+    const ball = this.ball;
+    const lk = ball.lastKick;
+    if (!lk || !lk.homing || ball.owner || this.phase !== 'live') return;
+    const r = lk.receiver;
+    if (!r || r.sentOff || ball.lastTouch !== lk.player || this.time - lk.time > 5 || ball.pos.y > 0.6) { lk.homing = false; return; }
+    const dx = r.pos.x - ball.pos.x, dz = r.pos.z - ball.pos.z;
+    const d = Math.hypot(dx, dz);
+    const s = Math.hypot(ball.vel.x, ball.vel.z);
+    if (d < 0.5 || s < 0.5) return;
+    let diff = Math.atan2(dz, dx) - Math.atan2(ball.vel.z, ball.vel.x);
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) > 1.3) { lk.homing = false; return; } // already past them
+    const turn = Math.max(-3 * dt, Math.min(3 * dt, diff));
+    const h = Math.atan2(ball.vel.z, ball.vel.x) + turn;
+    // never die short of the receiver: keep at least enough pace to roll up to them
+    const need = Math.sqrt(2 * (BALL.rollDecel + 0.35) * (d + 1.5));
+    const ns = Math.max(s, Math.min(need, 22));
+    ball.vel.x = Math.cos(h) * ns;
+    ball.vel.z = Math.sin(h) * ns;
   }
 
   resolveTouches() {
