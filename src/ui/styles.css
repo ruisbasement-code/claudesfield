@@ -257,7 +257,7 @@
 .cf-tab.is-focus { color: var(--bg); background: var(--ink); }
 .cf-tabs .cf-tabhint { align-self: center; margin-left: 6px; }
 .cf-settings-body { flex: 1; display: grid; grid-template-columns: minmax(0, 760px) 1fr; gap: 56px; padding: 20px 56px 20px; min-height: 0; }
-.cf-settings-list { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--dim) transparent; padding-bottom: 20px; }
+.cf-settings-list { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--dim) transparent; padding-bottom: 48px; }
 .cf-settings-list .cf-group { margin: 22px 0 6px; padding: 0 18px; }
 .cf-settings-list .cf-group:first-child { margin-top: 4px; }
 .cf-help { border-top: 2px solid var(--ink); padding-top: 14px; align-self: start; max-width: 360px; }

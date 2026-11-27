@@ -7,6 +7,7 @@
 //   el.cfHelp          { title, text } shown by screens that have a help panel
 import { getSettings } from './settings.js';
 import { sfx } from './sound.js';
+import { setChangeHook } from './dom.js';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
@@ -23,6 +24,7 @@ export class Nav {
     this._padPrev = [];
     this._padRepeat = { dir: null, next: 0 };
     this._lastPointer = { x: -1, y: -1 };
+    setChangeHook((el) => { const c = this.top; if (c && c.el.contains(el)) c.onChange?.(el); });
 
     window.addEventListener('keydown', (e) => this._key(e), true);
     window.addEventListener('pointermove', (e) => this._pointer(e), { passive: true });

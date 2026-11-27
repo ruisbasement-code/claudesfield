@@ -125,6 +125,7 @@ export function createUI(mount, handlers = {}) {
   ui.startMatch = (config) => {
     ui.lastConfig = config;
     ui.mode = 'match';
+    ui.mentality = 'balanced';
     ui.hideAll();
     ui.hud.start(config);
     sfx.start();
@@ -146,6 +147,7 @@ export function createUI(mount, handlers = {}) {
   ui.restart = () => {
     ui.hideAll();
     ui.mode = 'match';
+    ui.mentality = 'balanced';
     ui.hud.start(ui.lastConfig);
     if (handlers.onRestart) handlers.onRestart();
     else handlers.onStartMatch?.(ui.lastConfig);
@@ -160,13 +162,37 @@ export function createUI(mount, handlers = {}) {
     ui.show('result', ui.hud.completeSummary(summary));
   };
 
+  // Team mentality (tactics) for the human side: defensive / balanced / attacking.
+  const MENTALITIES = ['balanced', 'attacking', 'defensive'];
+  ui.mentality = 'balanced';
+  ui.humanTeamAI = () => {
+    const m = handlers.getMatch?.();
+    const side = ui.lastConfig?.controlledSide;
+    if (!m || (side !== 'home' && side !== 'away')) return null;
+    return m.ai?.[side === 'home' ? 0 : 1] || null;
+  };
+  ui.setMentality = (v, announce = true) => {
+    const ai = ui.humanTeamAI();
+    if (!ai?.setMentality) return false;
+    ui.mentality = v;
+    ai.setMentality(v === 'balanced' ? null : v);
+    if (announce) ui.hud.banner('Mentality', v.charAt(0).toUpperCase() + v.slice(1), { ms: 1300, force: true });
+    return true;
+  };
+  const cycleMentality = () => ui.setMentality(MENTALITIES[(MENTALITIES.indexOf(ui.mentality) + 1) % MENTALITIES.length]);
+
   // In-match: the pause binding (keyboard or gamepad) opens the pause menu.
   nav.onIdleKey = (e) => {
     if (ui.mode !== 'match' || e.repeat) return;
-    if ((getSettings().controls.keyboard.pause || []).includes(e.code)) { e.preventDefault(); ui.pause(); }
+    const kb = getSettings().controls.keyboard;
+    if ((kb.pause || []).includes(e.code)) { e.preventDefault(); ui.pause(); }
+    else if ((kb.mentality || []).includes(e.code)) cycleMentality();
   };
   nav.onIdlePad = (i) => {
-    if (ui.mode === 'match' && (i === getSettings().controls.gamepad.pause || i === 9)) ui.pause();
+    if (ui.mode !== 'match') return;
+    const gp = getSettings().controls.gamepad;
+    if (i === gp.pause || i === 9) ui.pause();
+    else if (i === gp.mentality) cycleMentality();
   };
   document.addEventListener('visibilitychange', () => { if (document.hidden && ui.mode === 'match') ui.pause(); });
   window.addEventListener('pointerdown', () => sfx.unlock(), { once: true });

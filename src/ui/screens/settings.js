@@ -31,7 +31,7 @@ function buildTab(id, ui) {
     case 'gameplay': return [
       group('Match'),
       sel('gameplay.difficulty', 'Default difficulty', DIFFICULTIES.map((d) => ({ value: d, label: DIFFICULTY_LABELS[d] })),
-        'How sharp the computer-controlled side is. ' + Object.values(DIFFICULTY_BLURBS).join(' '), { pips: true, wrap: false }),
+        () => `How sharp the computer-controlled side is. ${DIFFICULTY_LABELS[S().gameplay.difficulty]}: ${DIFFICULTY_BLURBS[S().gameplay.difficulty]}`, { pips: true, wrap: false }),
       sel('gameplay.halfMinutes', 'Half length', [2, 3, 4, 5, 6, 8, 10, 15, 20, 45].map((m) => ({ value: m, label: `${m} min` })),
         'Real minutes per half. The match clock always runs 0 to 90.', { wrap: false }),
       group('Rules'),
@@ -116,7 +116,7 @@ export function settingsScreen(ui) {
   function setHelp(node) {
     const hp = node?.cfHelp;
     helpTitle.textContent = hp?.title || '';
-    helpText.textContent = hp?.text || '';
+    helpText.textContent = (typeof hp?.text === 'function' ? hp.text() : hp?.text) || '';
   }
 
   function setTab(id, focusFirst = true) {
@@ -160,8 +160,9 @@ export function settingsScreen(ui) {
     for (const g of ACTION_GROUPS) {
       const acts = ACTIONS.filter((a) => a.group === g.id && (!isPad || g.id !== 'move'));
       if (!acts.length) continue;
-      list.append(group(g.label));
-      list.append(h('div.cf-bind-head.cf-overline', { class: isPad ? 'is-pad' : null }, h('span', {}, 'Action'), ...(isPad ? [h('span', {}, 'Button')] : [h('span', {}, 'Primary'), h('span', {}, 'Secondary')])));
+      const head = h('div.cf-bind-head.cf-overline', { class: isPad ? 'is-pad' : null }, h('span', {}, g.label), ...(isPad ? [h('span', {}, 'Button')] : [h('span', {}, 'Primary'), h('span', {}, 'Secondary')]));
+      head.style.marginTop = list.querySelector('.cf-bind') ? '26px' : '6px';
+      list.append(head);
       for (const a of acts) {
         const row = h('div.cf-bind', { class: isPad ? 'is-pad' : null }, h('div.cf-row-label', {}, a.label));
         if (isPad) row.append(bindCell(a, null));
@@ -241,7 +242,7 @@ export function settingsScreen(ui) {
         if (!conflictsWith(other.group).includes(action.group)) continue;
         const arr = kb[other.id] || [];
         const j = arr.indexOf(code);
-        if (j >= 0) { arr[j] = prev; ui.toast(`${keyLabel(code)} moved from ${other.label}${prev ? `, which now uses ${keyLabel(prev)}` : ''}`); }
+        if (j >= 0) { arr[j] = prev === 'Escape' ? null : prev; ui.toast(`${keyLabel(code)} moved from ${other.label}${prev ? `, which now uses ${keyLabel(prev)}` : ''}`); }
       }
     }
     mine[slot] = code;
@@ -282,6 +283,7 @@ export function settingsScreen(ui) {
         onBack: back,
         onTab: (d) => setTab(order[(order.indexOf(tab) + d + order.length) % order.length]),
         onFocus: setHelp,
+        onChange: setHelp,
       });
     },
   };

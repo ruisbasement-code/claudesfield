@@ -33,7 +33,7 @@ export class StatsTracker {
     this.off = [];
     const on = (n, f) => { if (ev?.on) this.off.push(ev.on(n, f)); };
     on('kick', (p) => this.onKick(p));
-    on('possession', (p) => this.onPossession(p));
+    on('touch', (p) => { if (p.kind !== 'kick' && p.kind !== 'deflect') this.onPossession({ player: p.player, team: p.player?.team }); });
     on('shot', (p) => this.onShot(p));
     on('tackle', (p) => this.onTackle(p));
     on('save', (p) => this.onSave(p));
@@ -68,6 +68,7 @@ export class StatsTracker {
   }
   onPossession({ player, team }) {
     const side = sideOf(team || player?.team);
+    if (this.pendingPass && player === this.pendingPass.player) return;
     if (this.pendingPass) {
       if (this.pendingPass.side === side && player !== this.pendingPass.player) {
         this.t[side].completed++;

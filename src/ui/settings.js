@@ -22,6 +22,7 @@ export const ACTIONS = [
   { id: 'tackle', label: 'Standing tackle', group: 'defend' },
   { id: 'slide', label: 'Slide tackle', group: 'defend' },
   { id: 'switch', label: 'Switch player', group: 'defend' },
+  { id: 'mentality', label: 'Cycle team mentality', group: 'general' },
   { id: 'pause', label: 'Pause', group: 'general' },
 ];
 
@@ -56,6 +57,7 @@ const KEYBOARD_DEFAULTS = {
   tackle: ['KeyJ', null],
   slide: ['KeyK', null],
   switch: ['KeyQ', null],
+  mentality: ['KeyM', null],
   pause: ['Escape', 'KeyP'],
 };
 
@@ -72,6 +74,7 @@ const GAMEPAD_DEFAULTS = {
   tackle: 1,   // B / Circle (defence)
   slide: 2,    // X / Square (defence)
   switch: 4,   // LB / L1 (defence)
+  mentality: 8, // View / Share
   pause: 9,    // Menu / Options
 };
 

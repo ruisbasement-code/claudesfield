@@ -22,6 +22,11 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+// Lets the active nav context react to value changes (e.g. refresh a help panel).
+let changeHook = null;
+export function setChangeHook(fn) { changeHook = fn; }
+function changed(row) { changeHook?.(row); }
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /**
@@ -51,6 +56,7 @@ export function selectRow(opts) {
     if (opts.wrap === false) i = Math.max(0, Math.min(n - 1, i)); else i = (i + n) % n;
     opts.set(opts.options[i].value);
     render();
+    changed(row);
   };
   row.cfActivate = () => row.cfAdjust(1);
   left.addEventListener('click', (e) => { e.stopPropagation(); row.cfAdjust(-1); sfx.change(); });
@@ -79,7 +85,7 @@ export function sliderRow(opts) {
   const setV = (v) => {
     const s = opts.step;
     v = Math.round(Math.max(opts.min, Math.min(opts.max, v)) / s) * s;
-    opts.set(+v.toFixed(4)); render();
+    opts.set(+v.toFixed(4)); render(); changed(row);
   };
   row.cfAdjust = (d) => setV(opts.get() + d * opts.step);
   row.cfActivate = () => {};

@@ -1,4 +1,4 @@
-import { h } from '../dom.js';
+import { h, selectRow } from '../dom.js';
 import { sfx } from '../sound.js';
 import { scorelineEl, scorersEl, statsEl } from './common.js';
 
@@ -18,10 +18,17 @@ export function pauseScreen(ui) {
     b.addEventListener('click', () => { sfx.select(); act(id); });
     menu.append(b);
   }
+  const tactics = selectRow({
+    label: 'Mentality',
+    options: [{ value: 'defensive', label: 'Defensive' }, { value: 'balanced', label: 'Balanced' }, { value: 'attacking', label: 'Attacking' }],
+    get: () => ui.mentality, set: (v) => ui.setMentality(v, false), wrap: false,
+  });
+  tactics.style.marginTop = '28px';
+  tactics.style.gridTemplateColumns = '1fr 220px';
   const el = h('section.cf-screen', {},
     h('div.cf-scrim'),
     h('div.cf-pause-inner', {},
-      h('div', {}, minute, h('h1.cf-h1', { style: { marginTop: '12px' } }, 'Paused'), menu),
+      h('div', {}, minute, h('h1.cf-h1', { style: { marginTop: '12px' } }, 'Paused'), menu, tactics),
       side),
     ui.hints([{ key: 'confirm', label: 'Select' }, { key: 'back', label: 'Resume' }]));
   el.style.zIndex = 5;
@@ -51,6 +58,8 @@ export function pauseScreen(ui) {
     el,
     show() {
       renderSide();
+      tactics.hidden = !ui.humanTeamAI();
+      tactics.render();
       ui.nav.set({ el, initial: '[data-id="resume"]', wrap: true, onBack: () => ui.resume(), onStart: () => ui.resume() });
     },
   };

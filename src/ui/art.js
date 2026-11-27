@@ -14,9 +14,16 @@ export function colorDistance(a, b) {
   return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]) * 0.6 + Math.abs(luminance(a) - luminance(b)) * 255 * 1.2;
 }
 
+/** A colour from the kit that reads on the dark UI (falls back through trim/number/shorts). */
+export function visibleColor(kit = {}, fallback = '#f3f2ec') {
+  for (const c of [kit.shirt, kit.trim, kit.number, kit.shorts, kit.socks]) if (c && luminance(c) > 0.2) return c;
+  return fallback;
+}
+
 export function teamColors(team) {
   const k = team?.kits?.home || {};
-  const primary = team?.colors?.primary || k.shirt || '#cccccc';
+  let primary = team?.colors?.primary || k.shirt || '#cccccc';
+  if (luminance(primary) < 0.2) primary = visibleColor({ shirt: primary, trim: team?.colors?.secondary, number: team?.colors?.accent, shorts: k.shorts });
   let secondary = team?.colors?.secondary || k.shorts || k.number || '#222222';
   if (colorDistance(primary, secondary) < 60) secondary = inkFor(primary);
   return { primary, secondary };

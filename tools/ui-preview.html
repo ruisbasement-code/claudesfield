@@ -19,7 +19,7 @@
 
     let match = null, acc = 0, last = performance.now();
     const ui = createUI(document.getElementById('ui'), {
-      onStartMatch(cfg) { match = new Match({ ...cfg, humanSide: 'none' }); },
+      onStartMatch(cfg) { match = new Match({ ...cfg, humanSide: window.__human || 'none' }); },
       onPause() { if (match) match.paused = true; },
       onResume() { if (match) match.paused = false; },
       onRestart() { match = new Match({ ...ui.config, humanSide: 'none' }); },

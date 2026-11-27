@@ -11,7 +11,7 @@
 // shootout, replay, half-time) and listens to match.events for banners and statistics.
 import { h, esc } from '../dom.js';
 import { getSettings } from '../settings.js';
-import { teamColors, inkFor, colorDistance } from '../art.js';
+import { teamColors, inkFor, colorDistance, visibleColor } from '../art.js';
 import { StatsTracker, summarize, minuteLabel, nameOf } from '../summary.js';
 import { scorelineEl, statsEl } from './common.js';
 import { PITCH } from '../../core/constants.js';
@@ -43,7 +43,7 @@ export function createHUD(ui) {
   const fps = h('div.cf-fps');
   const halftime = h('div.cf-halftime', { hidden: true });
 
-  const el = h('div.cf-hud', {}, scorebug, sub, playercard, power, radar, banner, halftime, fps);
+  const el = h('div.cf-hud', {}, scorebug, sub, playercard, power, radar, halftime, banner, fps);
 
   // ---------------------------------------------------------------- state
   let config = null;
@@ -74,9 +74,9 @@ export function createHUD(ui) {
     homeName.textContent = (H?.short || H?.name || 'HOM').toUpperCase();
     awayName.textContent = (A?.short || A?.name || 'AWY').toUpperCase();
     const hk = kitFor('home'), ak = kitFor('away');
-    colors.home = hk.shirt || teamColors(H).primary;
-    colors.away = ak.shirt || teamColors(A).primary;
-    if (colorDistance(colors.home, colors.away) < 90) colors.away = ak.shorts || inkFor(colors.home);
+    colors.home = visibleColor(hk, teamColors(H).primary);
+    colors.away = visibleColor(ak, teamColors(A).primary);
+    if (colorDistance(colors.home, colors.away) < 90) colors.away = [ak.trim, ak.number, ak.shorts].find((c) => c && colorDistance(c, colors.home) >= 90) || inkFor(colors.home);
     homeBar.style.setProperty('--c', colors.home);
     awayBar.style.setProperty('--c', colors.away);
   }
@@ -191,6 +191,7 @@ export function createHUD(ui) {
   let halftimeShown = false;
   function showHalftime() {
     halftimeShown = true;
+    queue.length = 0;
     const sum = summarize(match, tracker);
     const canContinue = !!(match?.config?.halftimeWait && (ui.handlers.onContinue || match?.rules?.continueFromBreak));
     halftime.innerHTML = '';
@@ -254,12 +255,13 @@ export function createHUD(ui) {
 
     // clock
     const secs = state.clockSeconds ?? match?.clock?.seconds ?? 0;
-    clock.textContent = fmtClock(secs);
+    const ph = state.phase ?? match?.phase;
+    clock.textContent = ph === 'halftime' ? (match?.clock?.half >= 2 ? 'FT' : 'HT') : ph === 'fulltime' ? 'FT' : ph === 'shootout' ? 'PENS' : fmtClock(secs);
     clock.hidden = !S.hud.clock;
     const addMin = state.addedTime ?? match?.clock?.addedTime ?? 0;
     const half = state.half ?? match?.clock?.half ?? 1;
     const regEnd = [0, 45, 90, 105, 120][half] ?? 90;
-    added.hidden = !(addMin > 0 && secs >= (regEnd - 1) * 60);
+    added.hidden = !(addMin > 0 && secs >= (regEnd - 1) * 60) || ph === 'halftime' || ph === 'fulltime' || ph === 'shootout';
     added.textContent = `+${addMin}`;
 
     // chips: set piece, replay, shootout
@@ -277,6 +279,7 @@ export function createHUD(ui) {
       const n = Math.max(so.kicks.home.length, so.kicks.away.length);
       chips.push(`<span class="cf-chip">${esc(homeName.textContent)}${dots(so.kicks.home, n)}</span><span class="cf-chip">${esc(awayName.textContent)}${dots(so.kicks.away, n)}</span>`);
     }
+    if (ui.mentality && ui.mentality !== 'balanced') chips.push(`<span class="cf-chip">${ui.mentality === 'attacking' ? '▲ Attacking' : '▼ Defensive'}</span>`);
     const chipHTML = chips.join('');
     if (sub.innerHTML !== chipHTML) sub.innerHTML = chipHTML;
 
