@@ -73,7 +73,12 @@ export function buildStadium(homeColors = ['#0f7c80'], awayColors = ['#a3192f'])
   board(PITCH.width + 4, L + 5.5, 0, -Math.PI / 2);
 
   // stands: four sloped tiers with a crowd texture
-  const standMat = (seed, cols) => new THREE.MeshStandardMaterial({ map: crowdTexture(seed, cols), roughness: 1, side: THREE.DoubleSide });
+  const crowdMats = [];
+  const standMat = (seed, cols) => {
+    const m = new THREE.MeshStandardMaterial({ map: crowdTexture(seed, cols), roughness: 1, side: THREE.DoubleSide, color: 0xb8b8b8 });
+    crowdMats.push(m);
+    return m;
+  };
   const concrete = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 1 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.8, side: THREE.DoubleSide });
   const mkStand = (len, depth, rise, cols, seed) => {
@@ -147,6 +152,7 @@ export function buildStadium(homeColors = ['#0f7c80'], awayColors = ['#a3192f'])
     d.position.set(sx * 10, 1, W + 3.2);
     group.add(d);
   }
+  group.userData.crowdMats = crowdMats;
   return group;
 }
 

@@ -39,7 +39,7 @@ export class Game {
     const a = s.audio || {};
     this.audio.setVolume({ master: a.master ?? 0.8, sfx: a.sfx ?? 0.8, crowd: a.crowd ?? 0.7 });
     if (this.match) this.match.config.autoSwitch = s.gameplay?.autoSwitch !== 'off';
-    for (const c of this.controllers || []) c.assist = { pass: s.gameplay?.passAssist, shot: s.gameplay?.shotAssist };
+    for (const c of this.controllers || []) { c.assist = { pass: s.gameplay?.passAssist, shot: s.gameplay?.shotAssist }; c.autoSwitch = s.gameplay?.autoSwitch || 'assisted'; }
   }
 
   startMatch(config) {
@@ -51,7 +51,7 @@ export class Game {
     this.match = match;
     this.controllers = match.teams.filter((t) => t.human).map((t) => new HumanController(match, t, this.input, () => this.renderer.rig.basis()));
     match.humanControllers = this.controllers;
-    for (const c of this.controllers) c.assist = { pass: this.settings?.gameplay?.passAssist, shot: this.settings?.gameplay?.shotAssist };
+    for (const c of this.controllers) { c.assist = { pass: this.settings?.gameplay?.passAssist, shot: this.settings?.gameplay?.shotAssist }; c.autoSwitch = this.settings?.gameplay?.autoSwitch || 'assisted'; }
     this.renderer.attach(match);
     this.renderer.setEnvironment(cfg.timeOfDay || 'night', cfg.weather || 'clear');
     this.hookAudio(match);
@@ -86,6 +86,7 @@ export class Game {
     for (const u of this.unsub) u();
     this.unsub = [];
     if (this.match) for (const ai of this.match.ai) ai.dispose?.();
+    for (const c of this.controllers) c.dispose?.();
     this.match = null;
     this.controllers = [];
     this.renderer.detach();
@@ -148,6 +149,7 @@ export class Game {
       aim: hc?.aimPoint || null,
       receiver: hc?.previewReceiver || null,
       attackSide: hc ? hc.team.side : 1,
+      excite: this.audio.excite,
     };
     if (hc && m) {
       const ap = hc.activePlayer();

@@ -18,6 +18,49 @@ export class HumanController {
     this.lastMove = { x: team.side, z: 0 };
     this.aimPoint = null; // for HUD/renderer (penalties / free kicks)
     this.previewReceiver = null;
+    this.assist = { pass: 'assisted', shot: 'assisted' };
+    this.autoSwitch = 'assisted';
+    this.lastAutoSwitch = 0;
+    this.unsub = match.events.on('kick', (e) => this.onKick(e));
+  }
+
+  dispose() { this.unsub?.(); }
+
+  // Assisted auto-switching: when the opponent passes/clears or shoots, hand control to the
+  // teammate best placed to win the ball where it is going.
+  onKick(e) {
+    const m = this.match;
+    if (this.autoSwitch === 'off' || !e.player || e.player.team === this.team) return;
+    const ctrl = this.team.controlled;
+    const target = e.target || (m.ball.inAir() ? m.ball.predictLanding().pos : m.ball.predict(0.8));
+    if (!target) return;
+    let best = null, bd = Infinity;
+    for (const p of this.team.players) {
+      if (p.sentOff || p.isGK) continue;
+      const d = Math.hypot(p.pos.x - target.x, p.pos.z - target.z);
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (!best || best === ctrl) return;
+    const cd = ctrl ? Math.hypot(ctrl.pos.x - target.x, ctrl.pos.z - target.z) : Infinity;
+    // only switch if clearly better and the human is not mid-input
+    if (cd - bd > 6 && !this.charging) {
+      m.setControlled(this.team, best);
+      this.lastAutoSwitch = m.time;
+    }
+  }
+
+  autoSwitchTick() {
+    const m = this.match;
+    if (this.autoSwitch !== 'auto' || m.time - this.lastAutoSwitch < 0.8) return;
+    const ball = m.ball;
+    if (ball.owner && ball.owner.team === this.team) return;
+    const ctrl = this.team.controlled;
+    const best = m.nearestPlayer(this.team, ball.pos, (p) => !p.isGK);
+    if (best && best !== ctrl) {
+      const cd = ctrl ? Math.hypot(ctrl.pos.x - ball.pos.x, ctrl.pos.z - ball.pos.z) : Infinity;
+      const bd = Math.hypot(best.pos.x - ball.pos.x, best.pos.z - ball.pos.z);
+      if (cd - bd > 4) { m.setControlled(this.team, best); this.lastAutoSwitch = m.time; }
+    }
   }
 
   worldMove() {
@@ -63,6 +106,7 @@ export class HumanController {
     const opp = ball.owner && ball.owner.team !== this.team;
     const attacking = !opp;
 
+    if (live) this.autoSwitchTick();
     if (!live && !takingSetPiece && !facingPenalty) { this.charging = null; this.power = 0; this.aimPoint = null; return; }
 
     // ---------- keeper facing a penalty: shuffle on the line, dive with shoot/pass ----------

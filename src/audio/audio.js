@@ -55,8 +55,8 @@ export class MatchAudio {
   }
 
   update(dt, active) {
-    if (!this.ctx) return;
     this.excite = Math.max(0, this.excite - dt * 0.25);
+    if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.roarGain.gain.setTargetAtTime(active ? this.excite * 0.9 : 0, t, 0.25);
     this.bedGain.gain.setTargetAtTime(active ? 0.22 + this.excite * 0.1 : 0.08, t, 0.5);
