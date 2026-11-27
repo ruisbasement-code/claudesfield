@@ -52,7 +52,10 @@ export class Referee {
 
     const ev = match.events;
     ev.on('touch', (e) => this.onPlayed(e.player, e.kind ?? 'control'));
-    ev.on('kick', (e) => this.onPlayed(e.player, 'kick'));
+    ev.on('kick', (e) => {
+      if (['shot', 'finesse', 'chip', 'headerShot', 'volley'].includes(e.type)) this.lastAttempt = { player: e.player, time: match.time ?? 0 };
+      this.onPlayed(e.player, 'kick');
+    });
     ev.on('ballOut', (e) => this.onBallOut(e));
     ev.on('goal', (e) => this.onGoal(e));
     ev.on('tackle', (e) => this.onTackle(e));
@@ -359,6 +362,7 @@ export class Referee {
   // ------------------------------------------------------------------ events
   onPlayed(player, kind) {
     if (!player) return;
+    this.lastContact = { player, kind };
     // de-duplicate touch+kick for the same contact
     if (this.lastTouchFrame.player === player && this.lastTouchFrame.n >= this.frame - 1) {
       this.lastTouchFrame.n = this.frame;
@@ -437,7 +441,55 @@ export class Referee {
       }
     }
     this.advantage = null;
-    const scorer = e.scorer ?? m.ball.lastTouch;
+    // VAR: a tight offside call in the build-up gets checked.
+    const cc = this.offside.closeCall;
+    if (this.goalTime == null) this.goalTime = m.time ?? 0;
+    if (cc && cc.player.team === team && this.cfg.var !== false && !this.varChecked) {
+      this.varCheck(e, cc, defTeam);
+      return;
+    }
+    this.varChecked = false;
+    this.awardGoal(e, team, r);
+  }
+
+  varCheck(e, cc, defTeam) {
+    this.stopPlay('var');
+    this.mode = 'var';
+    this.clearTimers();
+    this.officials.gesture('point', 3);
+    this.say('VAR – checking possible offside', 'var');
+    this.emit('var', { kind: 'offside', state: 'checking', player: cc.player });
+    const overturn = cc.margin > 0.08;
+    this.after(this.cfg.varSeconds ?? 3.2, () => {
+      this.offside.closeCall = null;
+      if (overturn) {
+        this.emit('var', { kind: 'offside', state: 'overturned', player: cc.player, margin: cc.margin });
+        this.say(`No goal – ${cc.player.data?.short ?? cc.player.data?.name ?? ''} offside by ${Math.round(cc.margin * 100)} cm`, 'offside');
+        this.officials.gesture('whistle', 1);
+        this.stat(cc.player.team, 'offsides');
+        this.mode = 'play';
+        const spot = freeKickSpot(new Vector3(cc.pos.x, 0, cc.pos.z), defTeam, false);
+        this.scheduleRestart({ type: 'freekick', team: defTeam, spot, direct: false }, 1.6);
+      } else {
+        this.emit('var', { kind: 'offside', state: 'stands', player: cc.player });
+        this.say('VAR – goal stands', 'var');
+        this.mode = 'play';
+        this.varChecked = true;
+        this.onGoal(e);
+      }
+    });
+  }
+
+  awardGoal(e, team, r) {
+    const m = this.match;
+    const defTeam = team.opponent;
+    const sinceGoal = this.goalTime != null && Number.isFinite(m.time) ? m.time - this.goalTime : 0;
+    this.goalTime = null;
+    let scorer = e.scorer ?? m.ball.lastTouch;
+    // A save, parry or deflection by a defender on a goal-bound attempt is still the shooter's goal.
+    const lk = this.lastAttempt;
+    if (scorer && scorer.team !== team && lk?.player?.team === team && (m.time ?? 0) - lk.time < 4 && this.lastContact?.player === scorer
+      && ['save', 'parry', 'deflect', 'catch'].includes(this.lastContact.kind)) scorer = lk.player;
     const ownGoal = !!scorer && scorer.team !== team;
     team.score = (team.score ?? 0) + 1;
     this.stat(team, 'goals');
@@ -455,7 +507,7 @@ export class Referee {
     this.clearTimers();
     this.celebrate(scorer, team);
     let frames = null;
-    this.after(1.0, () => { frames = this.recorder.snapshot(6.5); });
+    this.after(1.0, () => { frames = this.recorder.snapshot(Math.min(11, 6.5 + sinceGoal)); });
     this.after(this.cfg.celebrationSeconds ?? 3.4, () => {
       this.releaseLocks();
       if (this.cfg.replays !== false && frames) {

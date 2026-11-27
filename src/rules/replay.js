@@ -1,7 +1,7 @@
 // Goal replays: a ring buffer of recent world state, played back by the renderer.
 // match.replay = { active, frames, t, speed, title } while a replay is showing.
 const FPS = 30;
-const SECONDS = 9;
+const SECONDS = 12;
 
 export class ReplayRecorder {
   constructor(match) {

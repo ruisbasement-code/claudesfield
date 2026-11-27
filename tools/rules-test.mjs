@@ -36,7 +36,7 @@ function mockMatch(config = {}) {
 const dt = 1 / 60;
 function step(m, rules, seconds, each) {
   for (let t = 0; t < seconds; t += dt) {
-    rules.preUpdate(dt);
+    m.time = (m.time ?? 0) + dt; rules.preUpdate(dt);
     each?.();
     // take the set piece if pending (mock core: taker's intent → kick)
     if (m.phase === 'setpiece' && m.setPiece?.taker?.intent?.action) {
@@ -150,6 +150,29 @@ const check = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); 
   step(m, r, 0.1);
   m.events.emit('touch', { player: runner, kind: 'control' });
   check(r.mode === 'play', 'onside player not flagged');
+
+  // VAR: tight call (runner 15 cm beyond the line) not flagged live, overturned on review
+  for (const p of away.players) p.pos.set(p.isGK ? 50 : 20, 0, (p.slot - 5) * 4);
+  runner.pos.set(20.18, 0, 3); m.ball.pos.set(5.3, 0.11, 0);
+  const score = home.score;
+  m.events.emit('touch', { player: passer, kind: 'kick' });
+  step(m, r, 0.1);
+  m.events.emit('touch', { player: runner, kind: 'control' });
+  check(r.mode === 'play', 'tight offside not flagged by the linesman');
+  m.phase = 'stopped'; m.events.emit('goal', { team: home, scorer: runner, pos: new Vector3(53, 1, 0) });
+  check(r.mode === 'var', 'VAR check started');
+  step(m, r, 3.5);
+  check(home.score === score && m.log.some(([, t]) => String(t).includes('offside by')), 'VAR disallows the goal');
+  step(m, r, 6);
+  // level (onside) → goal stands
+  for (const p of away.players) p.pos.set(p.isGK ? 50 : 20, 0, (p.slot - 5) * 4);
+  runner.pos.set(19.9, 0, 3); m.ball.pos.set(5.3, 0.11, 0);
+  m.events.emit('touch', { player: passer, kind: 'kick' });
+  step(m, r, 0.1);
+  m.events.emit('touch', { player: runner, kind: 'control' });
+  m.phase = 'stopped'; m.events.emit('goal', { team: home, scorer: runner, pos: new Vector3(53, 1, 0) });
+  step(m, r, 3.5);
+  check(home.score === score + 1, 'VAR: goal stands when onside');
 }
 
 // 3. full match with extra time and penalties
