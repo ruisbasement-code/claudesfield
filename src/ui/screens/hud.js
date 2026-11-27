@@ -95,6 +95,7 @@ export function createHUD(ui) {
       unsub.push(ev.on('card', (p) => onEvent('card', p)));
       unsub.push(ev.on('message', (p) => onEvent('message', p)));
       unsub.push(ev.on('shootoutKick', (p) => onEvent('shootoutKick', p)));
+      unsub.push(ev.on('var', (p) => onEvent('var', p)));
     }
     autoEvents = true;
     lastScore = [0, 0];
@@ -127,6 +128,7 @@ export function createHUD(ui) {
   }
 
   let pendingGoal = null;
+  let varCheck = null; // { logLen } while a VAR review runs
   function goalBanner(side, p, entry) {
     const t = teamFor(side);
     const scorer = entry?.scorer ? (typeof entry.scorer === 'string' ? entry.scorer : nameOf(entry.scorer)) : nameOf(p?.scorer);
@@ -142,7 +144,7 @@ export function createHUD(ui) {
       const e = log[log.length - 1];
       goalBanner(e.team || pendingGoal.side, pendingGoal.p, e);
       pendingGoal = null;
-    } else if (performance.now() > pendingGoal.until) pendingGoal = null; // disallowed
+    } else if (!varCheck && performance.now() > pendingGoal.until) pendingGoal = null; // disallowed
   }
 
   function onEvent(name, p = {}) {
@@ -160,13 +162,25 @@ export function createHUD(ui) {
       pushBanner({ title: red ? 'Red card' : 'Yellow card', tone: red ? 'red' : 'yellow', sub: nameOf(p.player), meta: p.reason || p.player?.team?.data?.short || '', ms: 2600 });
     } else if (name === 'message') {
       const k = p.kind || 'info';
-      if (k === 'goal' || k === 'card') return;
+      if (k === 'goal' || k === 'card' || k === 'var') return;
       if (k === 'offside') pushBanner({ title: 'Offside', sub: p.text && !/^offside!?$/i.test(p.text) ? p.text : '' });
       else if (k === 'foul') pushBanner({ title: 'Foul', sub: p.text && !/^foul!?$/i.test(p.text) ? p.text : '' });
       else if (k === 'advantage') pushBanner({ title: 'Advantage', ms: 1500 });
       else if (k === 'period') pushBanner({ title: p.text || 'Kick-off', ms: 2400, force: true });
       else if (k === 'added') pushBanner({ title: p.text || 'Added time', ms: 2000 });
       else pushBanner({ title: p.text || '', ms: 1800 });
+    } else if (name === 'var') {
+      if (p.state === 'checking') {
+        varCheck = { logLen: match?.goalsLog?.length ?? 0 };
+        pushBanner({ title: 'VAR check', tone: 'accent', sub: p.kind === 'offside' ? 'Possible offside' : (p.kind || ''), meta: nameOf(p.player), ms: 2800, force: true });
+      } else if (p.state === 'stands') {
+        const len = varCheck?.logLen ?? match?.goalsLog?.length ?? 0;
+        varCheck = null;
+        if (!pendingGoal) pendingGoal = { side: p.player?.team?.id === 'away' ? 'away' : 'home', p: { scorer: null }, logLen: len, until: performance.now() + 1500 };
+        else pendingGoal.until = performance.now() + 1500;
+      } else if (p.state === 'overturned') {
+        varCheck = null; pendingGoal = null; // the rules' offside message explains it
+      }
     } else if (name === 'shootoutKick') {
       const t = teamFor(p.team?.id === 'away' || p.team === 'away' || p.team?.index === 1 ? 'away' : 'home');
       pushBanner({ title: p.scored ? 'Scored' : p.saved ? 'Saved' : 'Missed', tone: p.scored ? 'accent' : null, sub: nameOf(p.taker), meta: t?.short || '', ms: 1500, force: true });
@@ -304,6 +318,7 @@ export function createHUD(ui) {
       const n = Math.max(so.kicks.home.length, so.kicks.away.length);
       chips.push(`<span class="cf-chip">${esc(homeName.textContent)}${dots(so.kicks.home, n)}</span><span class="cf-chip">${esc(awayName.textContent)}${dots(so.kicks.away, n)}</span>`);
     }
+    if (varCheck) chips.unshift('<span class="cf-chip is-accent">VAR</span><span class="cf-chip">Checking goal</span>');
     if (ui.mentality && ui.mentality !== 'balanced') chips.push(`<span class="cf-chip">${ui.mentality === 'attacking' ? '▲ Attacking' : '▼ Defensive'}</span>`);
     const chipHTML = chips.join('');
     if (sub.innerHTML !== chipHTML) sub.innerHTML = chipHTML;
@@ -365,7 +380,7 @@ export function createHUD(ui) {
       config = cfg;
       attach(null);
       queue.length = 0; banner.innerHTML = ''; bannerBusy = false;
-      hideHalftime(); lastPhase = null; lastScore = [0, 0]; pendingGoal = null;
+      hideHalftime(); lastPhase = null; lastScore = [0, 0]; pendingGoal = null; varCheck = null;
       setupTeams();
       el.classList.add('is-active');
     },
