@@ -92,6 +92,9 @@ export class TeamAI {
 
   onKick(e) {
     this.lastKick = { player: e.player, type: e.type, time: this.time };
+    const spType = this.match.setPiece?.type || this.lastSetPieceType;
+    if (spType === 'penalty' && e.player && e.player.team !== this.team) this.penaltyKickAt = this.time;
+    this.lastSetPieceType = null;
     if (this.keeperBrain) this.keeperBrain.onKick(e);
     if (e.player && e.player.team === this.team) {
       const b = this.brain(e.player);
@@ -102,7 +105,7 @@ export class TeamAI {
 
   onPhase(e) {
     if (e.phase !== 'setpiece' && e.phase !== 'shootout') this.setPieceState = null;
-    if (this.keeperBrain) this.keeperBrain.resetPenalty();
+    if (this.keeperBrain && e.phase === 'setpiece') this.keeperBrain.resetPenalty();
   }
 
   // Ball position as perceived with a reaction delay (positional play reacts late on low levels).
@@ -257,7 +260,7 @@ export class TeamAI {
       const it = this.intent(p);
       it.face = null;
       if (p.isGK) {
-        if (p.hasBall && p.hasBall()) { this.keeperBrain?.update(dt, it, ctx); continue; }
+        if (this.penaltyKickAt != null && this.time - this.penaltyKickAt < 1.2 && !ball.owner) { this.keeperBrain?.penalty(it); continue; }
         this.keeperBrain?.update(dt, it, ctx);
         continue;
       }
@@ -480,7 +483,7 @@ export class TeamAI {
   // ---------------------------------------------------------------------------------------
   updateSetPiece(dt) {
     const sp = this.match.setPiece;
-    const ball = this.match.ball;
+    if (sp) this.lastSetPieceType = sp.type;
     for (const p of this.team.players) {
       if (p.sentOff || p.locked || this.isHuman(p)) continue;
       const it = this.intent(p);
