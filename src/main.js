@@ -30,7 +30,9 @@ async function boot() {
   game.inputEnabled = () => ui.mode === 'match' && !game.match?.replay?.active;
   game.on('frame', () => { if (game.match && ui.mode === 'match') ui.hud.update(game.hudState()); });
   game.on('fullTime', () => { if (ui.mode === 'match') ui.showResult(); });
-  ui.setLiveBackground?.(true);
+  // only drop the CSS fallback once the 3D stadium has actually drawn a few frames
+  let drawn = 0;
+  game.on('frame', () => { if (++drawn === 5) ui.setLiveBackground?.(true); });
   window.__ui = ui;
 }
 boot();
