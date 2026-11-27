@@ -126,13 +126,35 @@ export function createHUD(ui) {
     }, dur);
   }
 
+  let pendingGoal = null;
+  function goalBanner(side, p, entry) {
+    const t = teamFor(side);
+    const scorer = entry?.scorer ? (typeof entry.scorer === 'string' ? entry.scorer : nameOf(entry.scorer)) : nameOf(p?.scorer);
+    const own = entry ? entry.ownGoal : p?.ownGoal;
+    const tag = own ? ' (OG)' : entry?.penalty ? ' (pen)' : '';
+    pushBanner({ title: 'Goal', tone: 'accent', sub: scorer ? scorer + tag : t?.name, meta: `${t?.short || t?.name || ''} · ${entry?.minute || minuteLabel(match?.clock)}`, ms: 3200, force: true });
+    ui.nav.pad?.vibrationActuator?.playEffect?.('dual-rumble', { duration: 300, strongMagnitude: 0.8, weakMagnitude: 0.5 }).catch?.(() => {});
+  }
+  function checkPendingGoal() {
+    if (!pendingGoal || !match) return;
+    const log = match.goalsLog || [];
+    if (log.length > pendingGoal.logLen) {
+      const e = log[log.length - 1];
+      goalBanner(e.team || pendingGoal.side, pendingGoal.p, e);
+      pendingGoal = null;
+    } else if (performance.now() > pendingGoal.until) pendingGoal = null; // disallowed
+  }
+
   function onEvent(name, p = {}) {
     if (name === 'goal') {
+      if (match?.shootout?.active || match?.phase === 'shootout') return; // shootoutKick handles these
       const side = p.team?.id === 'away' || p.team?.index === 1 ? 'away' : 'home';
-      const t = teamFor(side);
-      const scorer = nameOf(p.scorer);
-      pushBanner({ title: 'Goal', tone: 'accent', sub: p.ownGoal ? `${scorer} (OG)` : scorer || t?.name, meta: `${t?.short || t?.name || ''} · ${minuteLabel(match?.clock)}`, ms: 3200, force: true });
-      ui.nav.pad?.vibrationActuator?.playEffect?.('dual-rumble', { duration: 300, strongMagnitude: 0.8, weakMagnitude: 0.5 }).catch?.(() => {});
+      if (Array.isArray(match?.goalsLog)) {
+        // Wait for the rules to confirm the goal (they can disallow it) and use their minute label.
+        pendingGoal = { side, p, logLen: match.goalsLog.length, until: performance.now() + 800 };
+        return;
+      }
+      goalBanner(side, p, null);
     } else if (name === 'card') {
       const red = p.color === 'red';
       pushBanner({ title: red ? 'Red card' : 'Yellow card', tone: red ? 'red' : 'yellow', sub: nameOf(p.player), meta: p.reason || p.player?.team?.data?.short || '', ms: 2600 });
@@ -146,7 +168,8 @@ export function createHUD(ui) {
       else if (k === 'added') pushBanner({ title: p.text || 'Added time', ms: 2000 });
       else pushBanner({ title: p.text || '', ms: 1800 });
     } else if (name === 'shootoutKick') {
-      pushBanner({ title: p.scored ? 'Scored' : 'Missed', tone: p.scored ? 'accent' : null, sub: nameOf(p.taker), ms: 1600 });
+      const t = teamFor(p.team?.id === 'away' || p.team === 'away' || p.team?.index === 1 ? 'away' : 'home');
+      pushBanner({ title: p.scored ? 'Scored' : p.saved ? 'Saved' : 'Missed', tone: p.scored ? 'accent' : null, sub: nameOf(p.taker), meta: t?.short || '', ms: 1500, force: true });
     } else if (name === 'banner') pushBanner(p);
   }
 
@@ -243,6 +266,7 @@ export function createHUD(ui) {
     if (m !== match) attach(m);
     if (tracker && ui.mode === 'match') tracker.tick(dt);
     pollPadConfirm();
+    checkPendingGoal();
     const S = getSettings();
 
     // score
@@ -341,7 +365,7 @@ export function createHUD(ui) {
       config = cfg;
       attach(null);
       queue.length = 0; banner.innerHTML = ''; bannerBusy = false;
-      hideHalftime(); lastPhase = null; lastScore = [0, 0];
+      hideHalftime(); lastPhase = null; lastScore = [0, 0]; pendingGoal = null;
       setupTeams();
       el.classList.add('is-active');
     },

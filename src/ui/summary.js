@@ -105,6 +105,7 @@ export class StatsTracker {
   onGoal({ team, scorer, ownGoal }) {
     const side = sideOf(team);
     const m = this.match;
+    if (m?.shootout?.active || m?.phase === 'shootout') return;
     const minute = minuteLabel(m?.clock);
     const assist = !ownGoal && this.lastPasser && this.lastPasser.receiver === scorer ? this.lastPasser.player : null;
     if (scorer && !ownGoal) this.ps(scorer).goals++;
