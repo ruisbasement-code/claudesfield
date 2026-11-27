@@ -145,11 +145,6 @@ export class Renderer {
   }
 
   setRain(on) {
-    // crowd bounce with excitement
-    const ex = view.excite || 0;
-    const mats = this.stadium.userData.crowdMats || [];
-    const tt = performance.now() / 1000;
-    mats.forEach((mm, i) => { mm.map.offset.y = Math.abs(Math.sin(tt * 9 + i)) * 0.004 * ex; });
     if (this.rain) { this.scene.remove(this.rain); this.rain = null; }
     if (!on) return;
     const N = 6000;
