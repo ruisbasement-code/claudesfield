@@ -205,8 +205,10 @@ function groundPassTarget(p, type, receiver, power, dir, from) {
     return { target, speed: groundPassSpeed(D, 3 + power * 5) };
   }
   if (p.team.human) {
-    // human assisted ground pass: played straight to the receiver's feet (the ball then homes in on them)
-    return { target: new Vector3(receiver.pos.x, 0, receiver.pos.z), speed: null };
+    // human assisted ground pass: a straight ball to the receiver's feet, with only a touch of lead
+    // (he settles to take it). It is only lost if it is cut out or badly hit.
+    const sp = (D) => (type === 'gkThrow' ? Math.min(18, assistedPassSpeed(D, power, type)) : assistedPassSpeed(D, power, type));
+    return { target: leadReceiver(receiver, from, { time: (D) => rollTime(sp(D), D) }, 0.25), speed: null };
   }
   const sp = (D) => (type === 'gkThrow' ? Math.min(18, assistedPassSpeed(D, power, type)) : assistedPassSpeed(D, power, type));
   return { target: leadReceiver(receiver, from, { time: (D) => rollTime(sp(D), D) }), speed: null };
@@ -272,14 +274,13 @@ export function executeBallAction(p, a, match) {
     if (speed == null) speed = a.target && a.manual ? groundPassSpeed(dist, 4 + power * 10) : assistedPassSpeed(dist, power, type);
     if (type === 'gkThrow') speed = Math.min(speed, 18);
     speed *= 1 + randn() * statErr(s.passing, 0.06) * errScale;
-    const magnet = !!receiver && type !== 'through' && !a.manual && !a.target && p.team.human;
-    const errDeg = randn() * (statErr(s.passing, 5) * (1 + press * 1.2) + (volley ? 4 : 0) + dist * 0.03) * errScale * (magnet ? 0.5 : 1);
+    const toFeet = !!receiver && type !== 'through' && !a.manual && !a.target && p.team.human;
+    const errDeg = randn() * (statErr(s.passing, 5) * (1 + press * 1.2) + (volley ? 4 : 0) + dist * 0.03) * errScale * (toFeet ? 0.35 : 1);
     const dir = new Vector3(target.x - from.x, 0, target.z - from.z).normalize();
     rotateY(dir, (errDeg * Math.PI) / 180);
     const vel = dir.multiplyScalar(speed);
     vel.y = volley ? 1.5 : gkHands ? 1.0 : 0.25;
-    const homing = !!receiver && type !== 'through' && !a.manual && !a.target && p.team.human;
-    return finishKick(p, match, vel, new Vector3(), type, { receiver, target, homing });
+    return finishKick(p, match, vel, new Vector3(), type, { receiver, target, toFeet });
   }
 
   if (type === 'lob' || type === 'cross' || type === 'clear' || type === 'gkKick') {
