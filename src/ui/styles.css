@@ -420,6 +420,16 @@
   position: absolute; left: 50%; top: 24px; transform: translateX(-50%) scale(var(--hud-scale)); transform-origin: top center;
   display: flex; gap: 6px;
 }
+.cf-prompts {
+  position: absolute; right: 28px; bottom: 26px; max-width: 360px;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px;
+  padding: 8px 12px; background: rgba(17, 20, 19, .78);
+  font: 700 12px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2);
+  transform: scale(var(--hud-scale)); transform-origin: bottom right;
+  opacity: 0; transition: opacity .15s; pointer-events: none;
+}
+.cf-prompts.is-visible { opacity: 1; }
+.cf-prompt { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .cf-fps { position: absolute; right: 12px; bottom: 8px; font: 600 11px/1 var(--sans); color: var(--muted); }
 
 .cf-halftime { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }

@@ -63,6 +63,15 @@ export class HumanController {
     }
   }
 
+  // Screen-space vector (x right, y down) -> world ground direction.
+  toWorld(v) {
+    const b = this.getBasis();
+    const x = b.right.x * v.x - b.up.x * v.y;
+    const z = b.right.z * v.x - b.up.z * v.y;
+    const l = Math.hypot(x, z) || 1;
+    return { x: x / l, z: z / l };
+  }
+
   worldMove() {
     const mv = this.input.moveVector();
     const b = this.getBasis();
@@ -86,6 +95,7 @@ export class HumanController {
   update(dt) {
     const m = this.match;
     const input = this.input;
+    this.state = 'idle';
     if (!this.enabled) return;
     const p = this.activePlayer();
     if (!p || p.sentOff) return;
@@ -97,6 +107,11 @@ export class HumanController {
     it.sprint = input.isDown('sprint');
     it.face = null;
     it.action = null;
+    it.shield = false;
+    it.jockey = false;
+    this.state = 'idle';
+    const flickScreen = input.flicked?.() || null;
+    const flick = flickScreen ? this.toWorld(flickScreen) : null;
 
     const ball = m.ball;
     const sp = m.setPiece;
@@ -111,6 +126,7 @@ export class HumanController {
 
     // ---------- keeper facing a penalty: shuffle on the line, dive with shoot/pass ----------
     if (facingPenalty) {
+      this.state = 'penalty';
       it.move.z = mv.z * 0.6; it.move.x = 0;
       it.face = p.team.side > 0 ? 0 : Math.PI;
       if (input.pressed('shoot') || input.pressed('pass') || input.pressed('slide') || input.pressed('tackle')) {
@@ -135,29 +151,72 @@ export class HumanController {
       }
     }
 
-    // ---------- defending ----------
+    // ---------- defending (EA FC classic: A contain, B tackle, X slide, LT jockey, LB / right stick switch) ----------
     if (opp && !takingSetPiece) {
+      this.state = 'defend';
       this.charging = null; this.power = 0;
+      const o = ball.owner;
       if (input.pressed('switch')) m.switchPlayer(this.team);
+      else if (flick) this.switchToward(flick);
+      if (this.team.controlled !== p) return; // switched this frame; the new player takes over next step
       if (input.pressed('tackle')) it.action = { type: 'tackle' };
       else if (input.pressed('slide')) it.action = { type: 'slide', dir: mv.mag > 0.2 ? { x: mv.x, z: mv.z } : null };
-      // holding tackle = contain: move towards the ball carrier
-      if (input.isDown('tackle') && !it.action && mv.mag < 0.2) {
-        const o = ball.owner;
-        const dx = o.pos.x - p.pos.x, dz = o.pos.z - p.pos.z;
-        const d = Math.hypot(dx, dz) || 1;
-        it.move.x = dx / d; it.move.z = dz / d;
+      const dx = o.pos.x - p.pos.x, dz = o.pos.z - p.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      // contain: close the carrier down without diving in
+      if (input.isDown('contain') && !it.action) {
+        const stand = 1.6;
+        const k = d > stand ? 1 : 0.2;
+        if (mv.mag < 0.2 || d > stand) { it.move.x = (dx / d) * k; it.move.z = (dz / d) * k; }
         it.face = Math.atan2(dz, dx);
+      }
+      // jockey: stay square-on to the carrier and shuffle (sprint jockey with RT)
+      if (input.isDown('jockey')) {
+        it.jockey = true;
+        it.face = Math.atan2(dz, dx);
+      }
+      // teammate contain: the nearest team-mate presses the carrier
+      if (input.isDown('teamContain')) {
+        const mate = m.nearestPlayer(this.team, o.pos, (q) => q !== p && !q.isGK && !q.locked);
+        if (mate) {
+          const mx = o.pos.x - mate.pos.x, mz = o.pos.z - mate.pos.z;
+          const md = Math.hypot(mx, mz) || 1;
+          const k = md > 2 ? 1 : 0.15;
+          mate.intent.move.x = (mx / md) * k; mate.intent.move.z = (mz / md) * k;
+          mate.intent.sprint = md > 6;
+          mate.intent.face = Math.atan2(mz, mx);
+        }
+      }
+      // keeper rush: send the goalkeeper off his line towards the ball
+      const gk = this.team.keeper;
+      if (input.isDown('keeperRush') && gk && gk !== p && !gk.locked && gk.state !== 'hold') {
+        const kx = ball.pos.x - gk.pos.x, kz = ball.pos.z - gk.pos.z;
+        const kd = Math.hypot(kx, kz) || 1;
+        gk.intent.move.x = kx / kd; gk.intent.move.z = kz / kd;
+        gk.intent.sprint = true;
+        gk.intent.face = Math.atan2(kz, kx);
       }
       return;
     }
 
     // ---------- attacking / loose ball ----------
-    if (!ball.owner && input.pressed('switch') && !takingSetPiece) m.switchPlayer(this.team);
+    const mine = ball.owner === p;
+    this.state = takingSetPiece ? 'setpiece' : mine ? (p.isGK && p.state === 'hold' ? 'keeper' : 'attack') : 'loose';
+    if (!ball.owner && !takingSetPiece) {
+      if (input.pressed('switch')) m.switchPlayer(this.team);
+      else if (flick) this.switchToward(flick);
+      if (this.team.controlled !== p) return;
+    }
 
-    // skill move: knock-on when moving, drag-back when standing
-    if (input.pressed('skill') && ball.owner === p && !takingSetPiece) {
-      this.skill(p, mv);
+    // shield / protect the ball (LT)
+    if (mine && !takingSetPiece && input.isDown('shield') && !this.charging) {
+      it.shield = true;
+      it.sprint = false;
+    }
+
+    // skill moves: right-stick flick (or the skill button): knock-on when moving, drag-back when standing
+    if (mine && !takingSetPiece && !(p.isGK && p.state === 'hold') && (flick || input.pressed('skill'))) {
+      this.skill(p, mv, flick);
       return;
     }
 
@@ -206,18 +265,44 @@ export class HumanController {
     } else this.previewReceiver = null;
   }
 
-  skill(p, mv) {
+  // Manual switch: pick the team-mate best lined up with the right-stick flick.
+  switchToward(dir) {
+    const m = this.match;
+    const cur = this.team.controlled;
+    const from = cur ? cur.pos : m.ball.pos;
+    let best = null, bs = Infinity;
+    for (const q of this.team.players) {
+      if (q === cur || q.sentOff || q.isGK) continue;
+      const dx = q.pos.x - from.x, dz = q.pos.z - from.z;
+      const d = Math.hypot(dx, dz) || 1;
+      const cos = (dx * dir.x + dz * dir.z) / d;
+      if (cos < 0.5) continue; // within ~60 degrees of the flick
+      const score = d * (2 - cos);
+      if (score < bs) { bs = score; best = q; }
+    }
+    if (best) { m.setControlled(this.team, best); this.lastAutoSwitch = m.time; }
+    return best;
+  }
+
+  skill(p, mv, flick = null) {
     const m = this.match;
     const ball = m.ball;
-    if (mv.mag > 0.3) {
+    // a flick back against the way the player faces is a drag-back; any other flick knocks the ball on
+    let knock = null;
+    if (flick) {
+      const fx = Math.cos(p.facing), fz = Math.sin(p.facing);
+      if (flick.x * fx + flick.z * fz > -0.5) knock = flick;
+    } else if (mv.mag > 0.3) knock = mv;
+    if (knock) {
       // knock-on: push the ball into space and chase it
-      const v = new Vector3(mv.x, 0, mv.z).normalize().multiplyScalar(7 + (p.stats.pace / 99) * 3);
+      const v = new Vector3(knock.x, 0, knock.z).normalize().multiplyScalar(7 + (p.stats.pace / 99) * 3);
       ball.kick(v, null, p, 'knock');
       ball.lastKick = { player: p, type: 'knock', time: m.time };
       p.touchCooldown = 0.25;
       p.kickAnim = 0.6;
       m.emitTouch(p, 'kick');
       p.intent.sprint = true;
+      p.facing = Math.atan2(knock.z, knock.x);
     } else {
       // drag-back: turn 180 degrees with the ball
       p.facing += Math.PI;

@@ -17,7 +17,7 @@ import { Nav } from './nav.js';
 import { h } from './dom.js';
 import { sfx } from './sound.js';
 import { getSettings, onSettingsChange } from './settings.js';
-import { buttonLabel, padStyle } from './labels.js';
+import { buttonLabel, padStyle, padGlyph } from './labels.js';
 import { titleScreen } from './screens/title.js';
 import { setupScreen } from './screens/setup.js';
 import { settingsScreen } from './screens/settings.js';
@@ -51,11 +51,7 @@ export function createUI(mount, handlers = {}) {
     const pad = nav.inputMode === 'gamepad';
     const style = padStyle(nav.pad?.id);
     const G = (t, cls = '') => `<span class="cf-glyph ${cls}">${t}</span>`;
-    const face = (i) => {
-      const colors = style === 'ps' ? { 0: '#7aa7e6', 1: '#e86a5f', 2: '#d88fc8', 3: '#5cc9a7' } : { 0: '#5dbb46', 1: '#e0463c', 2: '#3d7fd9', 3: '#f2c230' };
-      const sym = style === 'ps' ? ['✕', '○', '□', '△'][i] : buttonLabel(i);
-      return `<span class="cf-glyph is-pad" style="background:${colors[i]}">${sym}</span>`;
-    };
+    const face = (i) => padGlyph(i, style);
     if (kind === 'confirm') return pad ? face(0) : G('Enter');
     if (kind === 'back') return pad ? face(1) : G('Esc');
     if (kind === 'tabs') return pad ? G(buttonLabel(4, style), 'is-pad is-wide') + G(buttonLabel(5, style), 'is-pad is-wide') : G('Q') + G('E');
@@ -180,6 +176,12 @@ export function createUI(mount, handlers = {}) {
     return true;
   };
   const cycleMentality = () => ui.setMentality(MENTALITIES[(MENTALITIES.indexOf(ui.mentality) + 1) % MENTALITIES.length]);
+  // FC-style d-pad tactics: right steps towards attacking, left towards defensive.
+  const SCALE = ['defensive', 'balanced', 'attacking'];
+  const stepMentality = (d) => {
+    const i = Math.max(0, Math.min(2, SCALE.indexOf(ui.mentality) + d));
+    if (SCALE[i] !== ui.mentality) ui.setMentality(SCALE[i]);
+  };
 
   // In-match: the pause binding (keyboard or gamepad) opens the pause menu.
   nav.onIdleKey = (e) => {
@@ -187,12 +189,16 @@ export function createUI(mount, handlers = {}) {
     const kb = getSettings().controls.keyboard;
     if ((kb.pause || []).includes(e.code)) { e.preventDefault(); ui.pause(); }
     else if ((kb.mentality || []).includes(e.code)) cycleMentality();
+    else if ((kb.tacticsAttack || []).includes(e.code)) stepMentality(1);
+    else if ((kb.tacticsDefend || []).includes(e.code)) stepMentality(-1);
   };
   nav.onIdlePad = (i) => {
     if (ui.mode !== 'match') return;
     const gp = getSettings().controls.gamepad;
     if (i === gp.pause || i === 9) ui.pause();
     else if (i === gp.mentality) cycleMentality();
+    else if (i === gp.tacticsAttack) stepMentality(1);
+    else if (i === gp.tacticsDefend) stepMentality(-1);
   };
   document.addEventListener('visibilitychange', () => { if (document.hidden && ui.mode === 'match') ui.pause(); });
   window.addEventListener('pointerdown', () => sfx.unlock(), { once: true });

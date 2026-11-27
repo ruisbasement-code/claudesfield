@@ -4,7 +4,7 @@ import { scorelineEl, scorersEl, statsEl } from './common.js';
 import { getSettings } from '../settings.js';
 import { keyLabel, buttonLabel, padStyle } from '../labels.js';
 
-const QUICK = [['pass', 'Pass'], ['through', 'Through'], ['lob', 'Lob / Cross'], ['shoot', 'Shoot'], ['chip', 'Chip mod'], ['finesse', 'Finesse mod'], ['sprint', 'Sprint'], ['tackle', 'Tackle'], ['slide', 'Slide'], ['switch', 'Switch'], ['mentality', 'Mentality']];
+const QUICK = [['pass', 'Pass'], ['contain', 'Contain'], ['through', 'Through'], ['tackle', 'Tackle'], ['lob', 'Lob / Cross'], ['slide', 'Slide'], ['shoot', 'Shoot'], ['jockey', 'Jockey'], ['finesse', 'Finesse mod'], ['switch', 'Switch'], ['chip', 'Chip mod'], ['teamContain', 'Team press'], ['sprint', 'Sprint'], ['shield', 'Shield'], ['skill', 'Skills'], ['tacticsAttack', 'Tactics']];
 
 export function pauseScreen(ui) {
   const side = h('div.cf-pause-side');
@@ -35,7 +35,9 @@ export function pauseScreen(ui) {
     const style = padStyle(ui.nav.pad?.id);
     quick.innerHTML = '';
     for (const [id, label] of QUICK) {
-      const v = pad ? buttonLabel(c.gamepad[id], style) : keyLabel((c.keyboard[id] || [])[0]);
+      let v = pad ? buttonLabel(c.gamepad[id], style) : keyLabel((c.keyboard[id] || [])[0]);
+      if (pad && id === 'skill' && c.gamepad.skill == null) v = 'RS';
+      if (id === 'tacticsAttack') v = pad ? 'D-pad ◀ ▶' : `${keyLabel((c.keyboard.tacticsDefend || [])[0])} ${keyLabel((c.keyboard.tacticsAttack || [])[0])}`;
       quick.append(h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--line)' } },
         h('span', {}, label), h('span.cf-glyph', {}, v)));
     }

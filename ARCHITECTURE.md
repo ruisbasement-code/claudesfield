@@ -155,12 +155,14 @@ When the ball goes out / a goal is scored the core sets `phase='stopped'` and em
 ## Settings & input
 
 * Settings module (menus thread): `src/ui/settings.js` → `getSettings()`, `onSettingsChange(fn)`, persisted in `localStorage`.
-* Control actions: `moveUp, moveDown, moveLeft, moveRight, sprint, pass, through, shoot, lob, switch, finesse, chip, tackle, slide, skill, pause`. Keyboard maps use `KeyboardEvent.code` (e.g. `'KeyW'`, `'ShiftLeft'`). `tackle` defaults to the same key as `pass` and `slide` to `shoot` (context-sensitive, like console football).
+* Control actions: `moveUp, moveDown, moveLeft, moveRight, sprint, pass, through, shoot, lob, finesse, chip, shield, skill` (attack), `contain, tackle, slide, jockey, teamContain, keeperRush, switch` (defend), `tacticsAttack, tacticsDefend, mentality, pause` (general). Keyboard maps use `KeyboardEvent.code` (e.g. `'KeyW'`, `'ShiftLeft'`). Attack and defend actions may share a key/button (context-sensitive, like console football).
+* Gamepad defaults (`GAMEPAD_DEFAULTS` in `src/ui/settings.js`) are the EA SPORTS FC Classic layout on the W3C standard mapping: A pass / contain, B shoot / tackle, X lob / slide, Y through / keeper rush, LB chip mod / switch, RB finesse mod / teammate contain, LT shield / jockey, RT sprint, View mentality, Menu pause, d-pad left/right tactics. Left stick moves; right-stick flicks (`input.flicked()`) do skill moves with the ball and manual switching without it. The d-pad does not move players in a match.
+* `HumanController.state` is `'attack' | 'loose' | 'defend' | 'keeper' | 'setpiece' | 'penalty' | 'idle'`; `Game.hudState().context` passes it to the HUD's button prompts (`hud.prompts` setting). Per-frame intent flags `intent.shield` / `intent.jockey` slow the player (and shielding makes tackles harder); `Player.update` clears them each step.
 * `src/input/input.js` (core) reads the bindings from settings and exposes `input.isDown(action)`, `input.pressed(action)`, `input.released(action)`, `input.moveVector()`.
 
 Extra knobs on the sim for AI/difficulty: `action.error` (kick error multiplier, 1 = stat default), `player.tackleBonus`, `player.saveBonus` (additive probabilities), `player.maxSpeed(sprint)`. Weather `'rain'` makes the ball skid further and bounce lower (`setSurface` in ball.js).
 
-Dev tools: `node tools/headless-sim.mjs [halfMinutes] [difficulty]`, `node tools/human-test.mjs` (scripted controls), `node tools/dev/shot-stats.mjs`, `node tools/dev/pass-stats.mjs`.
+Dev tools: `node tools/headless-sim.mjs [halfMinutes] [difficulty]`, `node tools/human-test.mjs` (scripted controls), `node tools/gamepad-test.mjs` (fake Xbox pad + FC actions), `node tools/dev/shot-stats.mjs`, `node tools/dev/pass-stats.mjs`.
 
 ## Rendering (`src/render/`)
 
