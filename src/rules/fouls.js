@@ -57,8 +57,8 @@ export function judgeTackle(match, ev) {
   // Misconduct: reckless (yellow) / excessive force (red)
   let card = null, reason = 'foul';
   const danger = severity * (slide ? 1.25 : 0.9) + (fromBehind ? 0.3 : 0) + (ballFirst ? -0.35 : 0);
-  const pRed = clamp((danger - 1.05) * 1.6 * strict, 0, 0.9);
-  const pYellow = clamp((danger - 0.55) * 1.4 * strict, 0, 0.95);
+  const pRed = clamp((danger - 1.35) * 1.2 * strict, 0, 0.9);
+  const pYellow = clamp((danger - 0.78) * 1.1 * strict, 0, 0.9);
   const r = Math.random();
   if (r < pRed) { card = 'red'; reason = 'serious foul play'; }
   else if (r < pRed + pYellow) { card = 'yellow'; reason = 'reckless challenge'; }
@@ -72,7 +72,7 @@ export function judgeTackle(match, ev) {
   } else if (!card) {
     const depth = victim.pos.x * victim.team.side + PITCH.halfL;
     const breakaway = depth > 55 && (victim.vel?.x ?? 0) * victim.team.side > 3.5;
-    if (breakaway && Math.random() < 0.55 * strict) { card = 'yellow'; reason = 'stopped a promising attack'; }
+    if (breakaway && Math.random() < 0.35 * strict) { card = 'yellow'; reason = 'stopped a promising attack'; }
   }
 
   return { tackler, victim, pos, penalty, card, reason, dogso };

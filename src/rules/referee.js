@@ -561,7 +561,7 @@ export class Referee {
     let shown = color;
     if (color === 'yellow') {
       player.yellow = (player.yellow ?? 0) + 1;
-      this.stat(team, 'yellows');
+      this.stat(team, 'yellow');
       if (player.yellow >= 2) shown = 'second';
     }
     this.officials.gesture('card', 1.8, color === 'yellow' && shown !== 'second' ? 'yellow' : 'red');
@@ -573,7 +573,7 @@ export class Referee {
     } else {
       if (shown === 'second') this.emit('card', { player, color: 'yellow', reason, second: true });
       this.emit('card', { player, color: 'red', reason });
-      this.stat(team, 'reds');
+      this.stat(team, 'red');
       this.say(`${shown === 'second' ? 'Second yellow – ' : 'Red card – '}${name}`, 'card');
       this.sendOff(player);
     }

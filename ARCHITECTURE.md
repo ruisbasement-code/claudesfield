@@ -174,6 +174,6 @@ When the ball goes out / a goal is scored the core sets `phase='stopped'` and em
 * `match.officials` = `{ referee:{pos,vel,facing,state:'run'|'whistle'|'card'|'advantage'|'point',cardColor}, assistants:[{pos,facing,flag:'down'|'up'|'offside'} x2] }`.
 * `match.replay` = `{ active, frames:[{ball:{x,y,z}, players:[{x,y,z,facing,state,speed,sentOff}] (match.players order), referee:{x,z,facing}}], t, fps, speed, title }` while a goal replay plays; `match.rules.skipReplay()`.
 * `match.goalsLog`, `match.shootout` (`{active, kicks:{home:[bool],away:[bool]}, first, current, done, winner}`), `match.result` (`{home, away, pens, winner, goals}` at full time).
-* Extra events: `fulltime` (result), `shootoutKick` `{team, taker, scored}`. `team.stats` counters: `goals, fouls, yellows, reds, offsides, corners, freekicks`.
+* Extra events: `fulltime` (result), `shootoutKick` `{team, taker, scored}`. `team.stats` counters: `goals, fouls, yellow, red, offsides, corners, freekicks`.
 * Modules: `offside.js` (snapshot at each touch, flagged when an offside-position player becomes involved), `fouls.js` (foul/card/DOGSO judgement), `setpieces.js` (positions, walls, 9.15 m zones), `officials.js`, `replay.js`, `shootout.js`.
 * `node tools/rules-test.mjs` runs headless checks against a mock match.
