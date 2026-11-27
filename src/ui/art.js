@@ -1,5 +1,8 @@
 // Generated SVG art: club crests, kit shirts, stars. No external assets needed.
 
+let uidCounter = 0;
+const uniq = (p) => `${p}${(++uidCounter).toString(36)}`;
+
 function hash(str) { let h = 2166136261; for (const c of String(str)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 function hexToRgb(h) {
@@ -47,7 +50,7 @@ export function crestSVG(team, { size } = {}) {
   const motif = (h >> 4) % 4;
   const initials = (team?.short || team?.name || '?').slice(0, 3).toUpperCase();
   const ink = inkFor(primary);
-  const uid = `c${h.toString(36)}`;
+  const uid = uniq('c');
   const outline = shape === 'round'
     ? `<circle cx="50" cy="56" r="46"/>`
     : `<path d="${SHAPES[shape]}"/>`;
@@ -73,7 +76,7 @@ export function kitSVG(kit = {}) {
   const shirt = kit.shirt || '#dddddd';
   const trim = kit.trim || kit.number || kit.shorts || inkFor(shirt);
   const pattern = kit.pattern || 'solid';
-  const uid = `k${hash(JSON.stringify(kit)).toString(36)}`;
+  const uid = uniq('k');
   const body = 'M30 8 L42 4 C44 10 56 10 58 4 L70 8 L92 22 L84 40 L74 35 L74 92 L26 92 L26 35 L16 40 L8 22 Z';
   let deco = '';
   if (pattern === 'stripes') deco = [34, 46, 58].map((x) => `<rect x="${x}" y="0" width="7" height="100" fill="${trim}"/>`).join('');

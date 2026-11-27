@@ -167,7 +167,8 @@ export function summarize(match, tracker) {
   if (match.result?.pens) out.pens = match.result.pens;
   else if (so && (so.active || so.done) && so.kicks) out.pens = { home: so.kicks.home.filter(Boolean).length, away: so.kicks.away.filter(Boolean).length };
   out.shootout = so?.kicks ? so : null;
-  out.winner = match.result?.winner ?? (out.home.score > out.away.score ? 'home' : out.away.score > out.home.score ? 'away' : out.pens ? (out.pens.home > out.pens.away ? 'home' : 'away') : null);
+  const rw = match.result?.winner ?? (so?.winner || null);
+  out.winner = rw ? (typeof rw === 'string' ? rw : sideOf(rw)) : (out.home.score > out.away.score ? 'home' : out.away.score > out.home.score ? 'away' : out.pens ? (out.pens.home > out.pens.away ? 'home' : 'away') : null);
   out.motm = manOfTheMatch(match, tracker, out);
   return out;
 }

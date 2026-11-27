@@ -51,3 +51,23 @@ export function statsEl(sum, keys) {
   wrap.querySelectorAll('.bars span:last-child i').forEach((i) => i.style.setProperty('--c', ac));
   return wrap;
 }
+
+/** Kick-by-kick penalty shootout grid. */
+export function shootoutEl(sum) {
+  const so = sum.shootout;
+  if (!so?.kicks) return null;
+  const n = Math.max(5, so.kicks.home.length, so.kicks.away.length);
+  const row = (side) => {
+    const t = sum[side];
+    const cells = [];
+    for (let i = 0; i < n; i++) {
+      const v = so.kicks[side][i];
+      cells.push(h('i', { style: { width: '22px', height: '22px', borderRadius: '50%', display: 'grid', placeItems: 'center', fontStyle: 'normal', font: '700 13px/1 var(--cond)',
+        background: v === true ? 'var(--good)' : v === false ? 'var(--bad)' : 'var(--line)', color: '#0b0b0b' } }, v === true ? '✓' : v === false ? '✕' : ''));
+    }
+    return h('div', { style: { display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center', gap: '16px', padding: '10px 0', borderBottom: '1px solid var(--line)' } },
+      h('span', { style: { font: '700 18px/1 var(--cond)', textTransform: 'uppercase' } }, t.short || t.name),
+      h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } }, cells));
+  };
+  return h('div', { style: { marginTop: '18px' } }, h('div.cf-overline', { style: { marginBottom: '6px' } }, 'Penalty shootout'), row('home'), row('away'));
+}

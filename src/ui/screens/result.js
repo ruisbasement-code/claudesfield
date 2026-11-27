@@ -1,7 +1,7 @@
 import { h } from '../dom.js';
 import { sfx } from '../sound.js';
 import { button } from '../dom.js';
-import { scorelineEl, scorersEl, statsEl } from './common.js';
+import { scorelineEl, scorersEl, statsEl, shootoutEl } from './common.js';
 
 export function resultScreen(ui) {
   const main = h('div');
@@ -25,10 +25,16 @@ export function resultScreen(ui) {
     main.innerHTML = ''; motm.innerHTML = '';
     if (!sum || !sum.home) { main.append(h('p', {}, 'No match data.')); return; }
     const you = ui.lastConfig?.controlledSide;
-    let verdict = 'Full time';
-    if (you === 'home' || you === 'away') verdict = sum.winner == null ? 'Full time · Draw' : sum.winner === you ? 'Full time · Victory' : 'Full time · Defeat';
+    const pre = ui.lastConfig?.mode === 'penalties' ? 'Shootout' : sum.pens ? 'After penalties' : 'Full time';
+    let verdict = pre;
+    if (you === 'home' || you === 'away') verdict = `${pre} · ${sum.winner == null ? 'Draw' : sum.winner === you ? 'Victory' : 'Defeat'}`;
     overline.textContent = verdict;
-    main.append(scorelineEl(sum), scorersEl(sum), statsEl(sum));
+    const pensOnly = ui.lastConfig?.mode === 'penalties';
+    main.append(scorelineEl(sum));
+    if (!pensOnly) main.append(scorersEl(sum));
+    const grid = shootoutEl(sum);
+    if (grid) main.append(grid);
+    main.append(statsEl(sum, pensOnly ? ['shotsOnTarget', 'saves'] : undefined));
     if (sum.motm) {
       const m = sum.motm;
       const team = sum[m.side];
